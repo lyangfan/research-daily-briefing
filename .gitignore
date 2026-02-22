@@ -54,3 +54,11 @@ data/papers/**/*.pdf
 # 临时文件
 *.tmp
 .DS_Store
+
+# 归档和测试
+.archive/
+*.skill
+
+# CSV 结果文件（临时）
+embedding_results*.csv
+skill_*.csv

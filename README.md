@@ -94,16 +94,28 @@ launchctl load ~/Library/LaunchAgents/com.research.briefing.send.plist
 
 ## 使用方法
 
-### 手动执行
+### 完整流程（推荐，用于 OpenClaw）
 
 ```bash
-# 采集和处理论文
+# 完整流程：采集 → 处理 → 输出早报内容到 stdout
+python3 src/main.py run
+
+# 指定日期
+python3 src/main.py run --date 2026-02-20
+```
+
+**说明**: `run` 命令会直接输出早报内容到标准输出，适合 OpenClaw 捕获并发送。
+
+### 手动执行（调试用）
+
+```bash
+# 采集和处理论文（保存到数据库）
 python3 src/main.py fetch
 
-# 发送早报到飞书
+# 发送早报到飞书（需要配置 OpenClaw）
 python3 src/main.py send
 
-# 测试（不实际发送）
+# 测试消息格式（不实际发送）
 python3 src/main.py test
 
 # 查看统计信息
@@ -116,10 +128,13 @@ python3 src/main.py cleanup
 ### 指定日期
 
 ```bash
-# 获取指定日期的论文
+# 完整流程
+python3 src/main.py run --date 2026-02-20
+
+# 仅采集
 python3 src/main.py fetch --date 2026-02-20
 
-# 发送指定日期的早报
+# 仅发送
 python3 src/main.py send --date 2026-02-20
 ```
 

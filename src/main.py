@@ -301,13 +301,43 @@ class ResearchBriefingSystem:
         self.logger.info('旧数据清理完成')
 
 
+def cmd_run(args):
+    """完整流程：采集 → 处理 → 输出早报内容"""
+    # 解析日期
+    target_date = None
+    if args.date:
+        try:
+            target_date = datetime.strptime(args.date, '%Y-%m-%d').date()
+        except ValueError:
+            print(f'错误: 无效的日期格式 {args.date}')
+            sys.exit(1)
+    else:
+        target_date = date.today()
+
+    # 初始化系统
+    system = ResearchBriefingSystem(args.config)
+
+    system.logger.info(f'开始完整流程: {target_date}')
+
+    # 1. 采集和处理
+    briefing_data = system.fetch_and_process(target_date, args.days_back)
+
+    # 2. 格式化为飞书消息
+    message = system.formatter.format_briefing(briefing_data)
+
+    # 3. 输出到 stdout（OpenClaw 会捕获这个输出）
+    print(message)
+
+    system.logger.info(f'完整流程完成: {target_date}')
+
+
 def main():
     """主函数"""
     parser = argparse.ArgumentParser(description='科研早报系统')
     parser.add_argument(
         'action',
-        choices=['fetch', 'send', 'test', 'cleanup', 'stats'],
-        help='操作: fetch(采集处理), send(发送), test(测试), cleanup(清理), stats(统计)'
+        choices=['fetch', 'send', 'run', 'test', 'cleanup', 'stats'],
+        help='操作: fetch(采集处理), send(发送), run(完整流程), test(测试), cleanup(清理), stats(统计)'
     )
     parser.add_argument(
         '--date',
@@ -348,6 +378,9 @@ def main():
     elif args.action == 'send':
         success = system.send_briefing(target_date)
         sys.exit(0 if success else 1)
+
+    elif args.action == 'run':
+        cmd_run(args)
 
     elif args.action == 'test':
         # 测试模式：发送测试消息

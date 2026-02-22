@@ -333,12 +333,6 @@ class AIFilter:
                     if pattern in content_lower:
                         logger.debug(f"Decision: NO (pattern: {pattern})")
                         return False
-                    ': no (focuses',
-                ]
-                for pattern in no_patterns:
-                    if pattern in content_lower:
-                        logger.debug(f"Decision: NO (pattern: {pattern})")
-                        return False
 
                 # 默认降级：根据内容中的关键词判断
                 has_yes_indicators = any(w in content_lower for w in ['yes', '相关', 'relevant', 'pass'])
