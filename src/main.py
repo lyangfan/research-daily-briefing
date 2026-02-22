@@ -268,6 +268,14 @@ class ResearchBriefingSystem:
     def cleanup(self):
         """清理旧数据"""
         self.storage.cleanup_old_data()
+
+        # 定期优化数据库
+        if self.config.get('storage', {}).get('auto_optimize', False):
+            import random
+            # 10% 的概率执行优化（避免每次都执行）
+            if random.random() < 0.1:
+                self.storage.optimize_database()
+
         self.logger.info('旧数据清理完成')
 
 

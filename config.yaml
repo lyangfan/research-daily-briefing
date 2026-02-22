@@ -166,8 +166,9 @@ openclaw:
 # 数据存储配置
 storage:
   briefings_dir: "data/briefings"
-  processed_papers_file: "data/processed_papers.json"
   retain_days: 90  # 保留多少天的数据
+  database_path: "data/briefings.db"  # SQLite 数据库路径
+  auto_optimize: true  # 是否定期优化数据库（重建索引、VACUUM）
 
 # 日志配置
 logging:
