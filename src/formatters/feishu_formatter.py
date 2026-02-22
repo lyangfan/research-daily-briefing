@@ -121,19 +121,6 @@ class FeishuFormatter:
         if paper.get('summary'):
             parts.append(f"\n📝 {paper['summary']}")
 
-        # 添加元信息
-        authors = paper.get('authors', [])
-        if authors:
-            # 只显示前3个作者
-            authors_str = ', '.join(authors[:3])
-            if len(authors) > 3:
-                authors_str += f' 等 ({len(authors)}人)'
-            parts.append(f"\n👥 作者: {authors_str}")
-
-        # 添加链接
-        if paper.get('url'):
-            parts.append(f"\n🔗 链接: {paper['url']}")
-
         # 添加分类（如果有）
         categories = paper.get('categories', [])
         if categories:
