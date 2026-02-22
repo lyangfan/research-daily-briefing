@@ -85,18 +85,27 @@ class BiorxivFetcher(BaseFetcher):
         Returns:
             论文列表
         """
-        # bioRxiv API 使用游标分页
-        url = f"{self.api_url}/{section}/{start_date}/{end_date}"
+        # bioRxiv API 使用格式: /details/[server]/[interval]/[cursor]/[format]
+        # interval 是 start_date/end_date
+        # 对于特定分类，使用 query string 参数
+        base_url = self.api_url.rsplit('/', 1)[0]  # 移除末尾的 biorxiv/medrxiv
+        server = self.platform  # biorxiv 或 medrxiv
 
         all_papers = []
         cursor = 0
 
         try:
             while True:
-                # 添加 cursor 参数
-                paginated_url = f"{url}?cursor={cursor}"
+                # 构建 URL: /details/biorxiv/start_date/end_date/cursor/json
+                # 添加 category 参数作为 query string
+                url = f"{base_url}/{server}/{start_date}/{end_date}/{cursor}/json"
+                if section:
+                    # 使用 category 参数过滤
+                    url = f"{url}?category={section}"
 
-                response = requests.get(paginated_url, timeout=30)
+                logger.debug(f'{self.platform} API URL: {url}')
+
+                response = requests.get(url, timeout=30)
                 response.raise_for_status()
 
                 data = response.json()
@@ -113,18 +122,16 @@ class BiorxivFetcher(BaseFetcher):
 
                 # 检查是否还有更多数据
                 messages = data.get('messages', [])
-                if messages and any('next cursor' in msg.lower() for msg in messages):
-                    # 更新 cursor
-                    for msg in messages:
-                        if 'next cursor:' in msg.lower():
-                            cursor = int(msg.split(':')[1].strip())
-                            break
+                if messages and len(papers) >= 100:
+                    # 每次返回最多 100 篇，继续获取下一批
+                    cursor += 100
                 else:
+                    # 没有更多数据了
                     break
 
-                # 防止无限循环
-                if cursor > 10000:
-                    logger.warning(f'{self.platform} {section}: cursor 过大，停止获取')
+                # 防止无限循环（限制获取数量）
+                if len(all_papers) >= 1000:
+                    logger.warning(f'{self.platform} {section}: 已获取 1000 篇论文，停止获取')
                     break
 
         except Exception as e:
