@@ -24,6 +24,10 @@ class ArxivFetcher(BaseFetcher):
         super().__init__(config)
         self.categories = config.get('categories', [])
         self.rss_url = config.get('rss_url', 'http://export.arxiv.org/rss/')
+        # 每页获取的论文数（arXiv API 最大推荐值）
+        self.batch_size = config.get('batch_size', 100)
+        # 最大获取论文数（防止无限循环）
+        self.max_papers_per_category = config.get('max_papers_per_category', 2000)
 
     def fetch(self, target_date: date, days_back: int = 1) -> List[Dict]:
         """
@@ -68,7 +72,7 @@ class ArxivFetcher(BaseFetcher):
         days_back: int
     ) -> List[Dict]:
         """
-        按分类获取论文
+        按分类获取论文（支持分页）
 
         Args:
             category: arXiv 分类
@@ -84,32 +88,57 @@ class ArxivFetcher(BaseFetcher):
         # 构建 API 查询
         query = f'cat:{category} AND submittedDate:[{start_date.strftime("%Y%m%d")}0000 TO {target_date.strftime("%Y%m%d")}2359]'
 
-        params = {
-            'search_query': query,
-            'start': 0,
-            'max_results': 100,  # 每次最多获取100篇
-            'sortBy': 'submittedDate',
-            'sortOrder': 'descending'
-        }
+        all_papers = []
+        start = 0
 
         try:
-            response = requests.get(self.BASE_URL, params=params, timeout=30)
-            response.raise_for_status()
+            while True:
+                # 防止无限循环
+                if len(all_papers) >= self.max_papers_per_category:
+                    logger.warning(f'{category}: 已达到最大论文数限制 ({self.max_papers_per_category})，停止获取')
+                    break
 
-            # 解析 Atom 格式响应
-            feed = feedparser.parse(response.content)
+                params = {
+                    'search_query': query,
+                    'start': start,
+                    'max_results': self.batch_size,
+                    'sortBy': 'submittedDate',
+                    'sortOrder': 'descending'
+                }
 
-            papers = []
-            for entry in feed.entries:
-                paper = self._parse_arxiv_entry(entry)
-                if paper:
-                    papers.append(paper)
+                response = requests.get(self.BASE_URL, params=params, timeout=30)
+                response.raise_for_status()
 
-            return papers
+                # 解析 Atom 格式响应
+                feed = feedparser.parse(response.content)
+
+                # 提取论文
+                batch_papers = []
+                for entry in feed.entries:
+                    paper = self._parse_arxiv_entry(entry)
+                    if paper:
+                        batch_papers.append(paper)
+
+                # 如果没有更多论文，退出循环
+                if not batch_papers:
+                    logger.debug(f'{category}: 第 {start // self.batch_size + 1} 页无论文，停止获取')
+                    break
+
+                all_papers.extend(batch_papers)
+                logger.debug(f'{category}: 第 {start // self.batch_size + 1} 页获取到 {len(batch_papers)} 篇论文')
+
+                # 如果返回的论文数少于 batch_size，说明已经到最后一页
+                if len(batch_papers) < self.batch_size:
+                    logger.debug(f'{category}: 返回 {len(batch_papers)} 篇论文，少于 {self.batch_size}，已到最后一页')
+                    break
+
+                # 继续获取下一页
+                start += self.batch_size
 
         except Exception as e:
             logger.error(f'arXiv API 请求失败: {e}')
-            return []
+
+        return all_papers
 
     def _parse_arxiv_entry(self, entry: Dict) -> Dict:
         """

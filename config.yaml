@@ -13,6 +13,9 @@ platforms:
       - cs.CR    # 密码学
       - cs.CV    # 计算机视觉
     rss_url: "http://export.arxiv.org/rss/"
+    # 分页配置
+    batch_size: 100                    # 每批获取的论文数
+    max_papers_per_category: 2000       # 每个分类最多获取论文数（防止无限循环）
 
   biorxiv:
     enabled: true
