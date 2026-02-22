@@ -9,9 +9,10 @@ import os
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from ..utils.logger import get_logger
+from ..utils.pdf_downloader import PDFDownloader
 
 logger = get_logger()
 
@@ -34,14 +35,22 @@ class PaperSummarizer:
         self.single_paper_timeout = config.get('single_paper_timeout', 600)  # 单篇论文超时（秒）
         self.batch_timeout = config.get('batch_timeout', 900)  # 批量总结超时（秒）
 
+        # PDF 下载配置
+        pdf_config = config.get('pdf_download', {})
+        self.pdf_enabled = pdf_config.get('enabled', False)
+        self.pdf_downloader = None
+        if self.pdf_enabled:
+            self.pdf_downloader = PDFDownloader(pdf_config)
+
         # 查找 claude 命令
         self.claude_path = self._find_claude()
         if not self.claude_path:
             raise ValueError('未找到 Claude Code CLI，请确保已安装')
 
         # Skill 路径
-        self.skill_path = config.get('skill_path', '')
-        if self.skill_path:
+        skill_path_config = config.get('skill_path', '')
+        if skill_path_config:
+            self.skill_path = Path(skill_path_config)
             logger.info(f'使用自定义 Skill: {self.skill_path}')
         else:
             # 默认使用项目内的 skill
@@ -49,9 +58,21 @@ class PaperSummarizer:
             self.skill_path = project_root / 'skills/paper-summarizer/SKILL.md'
             logger.info(f'使用项目 Skill: {self.skill_path}')
 
-        self.use_skill = self.skill_path and self.skill_path.exists()
+        # 检查是否使用 .skill 文件或 SKILL.md
+        self.skill_file = None
+        if self.skill_path.exists():
+            # 优先查找 .skill 文件（ZIP 格式）
+            skill_zip = self.skill_path.parent / (self.skill_path.stem + '.skill')
+            if skill_zip.exists():
+                self.skill_file = str(skill_zip)
+                logger.info(f'使用 Skill ZIP: {self.skill_file}')
+            else:
+                self.skill_file = str(self.skill_path)
+                logger.info(f'使用 Skill MD: {self.skill_file}')
 
-        logger.info(f'总结器初始化完成 (Claude Code: {self.claude_path}, 语言: {self.language}, 使用 Skill: {self.use_skill})')
+        self.use_skill = self.skill_file is not None
+
+        logger.info(f'总结器初始化完成 (Claude Code: {self.claude_path}, 语言: {self.language}, 使用 Skill: {self.use_skill}, PDF支持: {self.pdf_enabled})')
 
     def _find_claude(self) -> str:
         """
@@ -132,25 +153,47 @@ class PaperSummarizer:
         Returns:
             中文总结
         """
-        # 准备论文数据
-        paper_data = json.dumps({
-            "title": paper.get('title', ''),
-            "authors": paper.get('authors', [])[:3],
-            "abstract": paper.get('abstract', ''),
-            "categories": paper.get('categories', [])[:3],
-            "url": paper.get('url', ''),
-            "platform": paper.get('platform', '')
-        }, ensure_ascii=False)
-
-        # 使用 skill 调用
+        # 读取 skill 内容
         try:
+            with open(self.skill_file, 'r', encoding='utf-8') as f:
+                skill_content = f.read()
+        except Exception as e:
+            logger.warning(f'无法读取 Skill 文件: {e}，使用默认 prompt')
+            return self._summarize_with_prompt(paper)
+
+        # 跳过 YAML frontmatter
+        lines = skill_content.split('\n')
+        start_idx = 0
+        for i, line in enumerate(lines):
+            if line.strip() == '---' and i > 0:
+                start_idx = i + 1
+                break
+        skill_body = '\n'.join(lines[start_idx:])
+
+        title = paper.get('title', '')
+        authors = ', '.join(paper.get('authors', [])[:3])
+
+        # 准备论文内容（优先使用 PDF 全文）
+        paper_content = self._prepare_paper_content(paper)
+
+        # 将 skill 指令和论文内容组合成一个 prompt
+        prompt = f"""{skill_body}
+
+---
+
+请总结以下论文：
+
+**标题**: {title}
+**作者**: {authors}
+
+{paper_content}
+
+请严格按照上述格式要求，生成包含具体数据的中文总结。"""
+
+        try:
+            # 调用 claude 命令，将 skill 内容作为 prompt 传入
             result = subprocess.run(
-                [
-                    self.claude_path,
-                    '--skill', str(self.skill_path),
-                    '--max-turns', '1',
-                ],
-                input=paper_data.encode('utf-8'),
+                [self.claude_path, '-p', prompt],
                 capture_output=True,
                 text=True,
                 timeout=self.single_paper_timeout,
@@ -187,6 +230,51 @@ class PaperSummarizer:
             logger.error(f'Skill 调用失败: {e}，降级到普通 prompt 模式')
             return self._summarize_with_prompt(paper)
 
+    def _prepare_paper_content(self, paper: Dict) -> str:
+        """
+        准备论文内容（优先使用 PDF 全文）
+
+        Args:
+            paper: 论文数据
+
+        Returns:
+            论文内容文本
+        """
+        # 1. 如果已有 pdf_path，直接提取文本
+        if paper.get('pdf_path'):
+            pdf_text = self._extract_pdf_text(paper['pdf_path'])
+            if pdf_text:
+                return f"PDF全文内容:\n{pdf_text}"
+
+        # 2. 如果启用了 PDF 下载且有 pdf_url，尝试下载
+        if self.pdf_enabled and self.pdf_downloader and paper.get('pdf_url'):
+            logger.info(f'尝试下载 PDF: {paper.get("title", "")[:50]}...')
+            pdf_text = self.pdf_downloader.download_and_extract(paper)
+            if pdf_text:
+                return f"PDF全文内容:\n{pdf_text}"
+
+        # 3. 降级到摘要模式
+        abstract = paper.get('abstract', '')
+        if abstract:
+            return f"摘要:\n{abstract}"
+
+        return "无可用内容"
+
+    def _extract_pdf_text(self, pdf_path: str) -> str:
+        """
+        从已下载的 PDF 提取文本
+
+        Args:
+            pdf_path: PDF 文件路径
+
+        Returns:
+            提取的文本
+        """
+        if not self.pdf_downloader:
+            return ''
+
+        return self.pdf_downloader.extract_text(pdf_path)
+
     def _summarize_with_prompt(self, paper: Dict) -> str:
         """
         使用普通 Prompt 总结论文（后备方案）
@@ -197,20 +285,25 @@ class PaperSummarizer:
         Returns:
             中文总结
         """
+        # 准备论文内容
+        paper_content = self._prepare_paper_content(paper)
+
         # 构建提示词
-        prompt = self.config.get('prompt', (
+        prompt_template = self.config.get('prompt', (
             "请用中文总结以下论文，重点突出：\n"
             "1. 研究问题和动机\n"
             "2. 主要方法和创新点\n"
             "3. 关键结果\n\n"
             "论文标题：{title}\n"
             "作者：{authors}\n"
-            "摘要：{abstract}\n\n"
+            "{content}\n\n"
             "请用 200-300 字总结，要简洁清晰。"
-        )).format(
+        ))
+
+        prompt = prompt_template.format(
             title=paper.get('title', ''),
             authors=', '.join(paper.get('authors', [])[:3]),  # 只取前3个作者
-            abstract=paper.get('abstract', '')
+            content=paper_content
         )
 
         try:
@@ -257,12 +350,6 @@ class PaperSummarizer:
         except Exception as e:
             logger.error(f'调用 Claude Code CLI 失败: {e}')
             return paper.get('abstract', '')[:self.max_length]
-        finally:
-            # 清理临时文件
-            try:
-                os.unlink(prompt_path)
-            except:
-                pass
 
     def summarize_papers_batch(self, papers: List[Dict]) -> List[Dict]:
         """

@@ -164,12 +164,16 @@ class ArxivFetcher(BaseFetcher):
             # 发布日期
             published = entry.get('published', '')
 
+            # 构建 PDF URL
+            pdf_url = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
+
             return {
                 'id': f"arxiv:{arxiv_id}",
                 'title': entry.get('title', ''),
                 'authors': authors,
                 'abstract': entry.get('summary', '').replace('\n', ' ').strip(),
                 'url': entry.get('link', ''),
+                'pdf_url': pdf_url,  # PDF 下载链接
                 'published_date': published,
                 'categories': [tag.term for tag in entry.get('tags', [])],
                 'arxiv_id': arxiv_id

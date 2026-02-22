@@ -149,12 +149,17 @@ class BiorxivFetcher(BaseFetcher):
             # 清理作者名
             authors = [a.strip() for a in authors if a.strip()]
 
+            # 构建 PDF URL
+            landing_page = entry.get('landing_page_url', '') or entry.get('doi_url', '')
+            pdf_url = entry.get('pdf_url', '') or f"{landing_page}.full.pdf"
+
             return {
                 'id': f"{self.platform}:{entry.get('doi', '')}",
                 'title': entry.get('title', ''),
                 'authors': authors,
                 'abstract': entry.get('abstract', '').replace('<p>', '').replace('</p>', ''),
-                'url': entry.get('landing_page_url', '') or entry.get('doi_url', ''),
+                'url': landing_page,
+                'pdf_url': pdf_url,  # PDF 下载链接
                 'published_date': entry.get('date', ''),
                 'categories': [entry.get('category', '')],
                 'doi': entry.get('doi', ''),

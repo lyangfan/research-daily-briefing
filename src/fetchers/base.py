@@ -64,6 +64,7 @@ class BaseFetcher(ABC):
             'authors': paper.get('authors', []),
             'abstract': paper.get('abstract', '').strip(),
             'url': paper.get('url', ''),
+            'pdf_url': paper.get('pdf_url', ''),  # 保留 PDF URL
             'published_date': paper.get('published_date', ''),
             'platform': platform,
             'categories': paper.get('categories', []),

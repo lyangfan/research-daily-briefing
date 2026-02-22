@@ -14,7 +14,7 @@ logger = get_logger()
 
 
 class AIFilter:
-    """AI 相关性过滤器 (使用 Claude Code CLI)"""
+    """AI 相关性过滤器 (使用 Claude Code CLI + paper-relevance-judge skill)"""
 
     def __init__(self, config: Dict):
         """
@@ -36,6 +36,9 @@ class AIFilter:
             self.use_claude = True
             logger.info(f'AI 过滤器初始化完成 (Claude Code: {self.claude_path})')
 
+        # 加载 paper-relevance-judge skill
+        self.skill_content = self._load_skill()
+
     def _find_claude(self) -> str:
         """查找 claude 命令路径"""
         try:
@@ -55,6 +58,43 @@ class AIFilter:
             if os.path.exists(path) and os.access(path, os.X_OK):
                 return path
 
+        return None
+
+    def _load_skill(self) -> str:
+        """
+        加载 paper-relevance-judge skill 内容
+
+        Returns:
+            skill 内容（跳过 YAML frontmatter）
+        """
+        # 查找 skill 文件
+        skill_paths = [
+            'skills/paper-relevance-judge/SKILL.md',  # 项目内路径
+            os.path.expanduser('~/.claude/skills/paper-relevance-judge/SKILL.md'),  # 用户安装路径
+        ]
+
+        for skill_path in skill_paths:
+            if os.path.exists(skill_path):
+                try:
+                    with open(skill_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+
+                    # 跳过 YAML frontmatter
+                    lines = content.split('\n')
+                    start_idx = 0
+                    for i, line in enumerate(lines):
+                        if line.strip() == '---' and i > 0:
+                            start_idx = i + 1
+                            break
+
+                    skill_body = '\n'.join(lines[start_idx:])
+                    logger.info(f'已加载 paper-relevance-judge skill: {skill_path}')
+                    return skill_body
+
+                except Exception as e:
+                    logger.warning(f'读取 skill 文件失败 ({skill_path}): {e}')
+
+        logger.warning('未找到 paper-relevance-judge skill，将使用基础 prompt')
         return None
 
     def filter_papers(self, papers: List[Dict]) -> List[Dict]:
@@ -132,7 +172,7 @@ class AIFilter:
 
     def _check_relevance(self, paper: Dict) -> bool:
         """
-        使用 Claude Code CLI 判断论文是否相关
+        使用 Claude Code CLI + paper-relevance-judge skill 判断论文是否相关
 
         Args:
             paper: 论文数据
@@ -140,40 +180,180 @@ class AIFilter:
         Returns:
             是否相关
         """
-        # 构建提示词
-        prompt = self.config.get('relevance_prompt', (
-            "请判断以下论文是否与'科研相关的 AI Agent'相关。\n\n"
-            "判断标准：\n"
-            "1. 是否涉及多智能体系统 (multi-agent systems)\n"
-            "2. 是否涉及 AI/LLM Agent 的研究\n"
-            "3. 是否涉及自动化科研工具或方法论\n"
-            "4. 是否涉及强化学习在智能体中的应用\n\n"
-            "论文标题：{title}\n"
-            "论文摘要：{abstract}\n\n"
-            "请只回答 '相关' 或 '不相关'，不要解释。"
-        )).format(
-            title=paper.get('title', ''),
-            abstract=paper.get('abstract', '')
-        )
+        # 准备论文内容
+        title = paper.get('title', '')
+        abstract = paper.get('abstract', '')
+
+        # 构建提示词（优先使用 skill）
+        if self.skill_content:
+            # 使用 paper-relevance-judge skill
+            prompt = f"""{self.skill_content}
+
+---
+
+请判断以下论文是否与 AI Agents for Scientific Research 相关：
+
+**论文标题**: {title}
+
+**论文摘要**: {abstract}
+
+请严格按照上述格式要求输出判断结果（Decision、Reasoning、Confidence）。"""
+        else:
+            # 降级到基础 prompt
+            prompt = self.config.get('relevance_prompt', (
+                "请判断以下论文是否与'科研相关的 AI Agent'相关。\n\n"
+                "判断标准：\n"
+                "1. 是否涉及多智能体系统 (multi-agent systems)\n"
+                "2. 是否涉及 AI/LLM Agent 的研究\n"
+                "3. 是否涉及自动化科研工具或方法论\n"
+                "4. 是否涉及强化学习在智能体中的应用\n\n"
+                "论文标题：{title}\n"
+                "论文摘要：{abstract}\n\n"
+                "请只回答 '相关' 或 '不相关'，不要解释。"
+            )).format(title=title, abstract=abstract)
 
         try:
             result = subprocess.run(
                 [
                     self.claude_path,
                     '-p', prompt,
-                    '--max-turns', '1',
                 ],
                 capture_output=True,
                 text=True,
-                timeout=60,
+                timeout=120,  # 增加超时到 2 分钟
                 env={**os.environ, 'CLAUDECODE': ''}
             )
 
             if result.returncode == 0:
-                content = result.stdout.strip().lower()
+                content = result.stdout.strip()
 
-                # 判断响应
-                return '相关' in content or 'relevant' in content or 'yes' in content
+                # 记录完整响应用于调试
+                logger.debug(f'AI 判断响应:\n{content}')
+
+                # 解析响应（支持多种格式）
+                # 格式1: "**Decision**: YES" (Markdown 粗体)
+                # 格式2: "Decision: YES" (普通格式)
+                # 格式3: "Decision:YES" (无空格)
+                # 格式4: "相关" / "不相关" (中文)
+
+                content_lower = content.lower()
+                content_stripped = content.strip()
+
+                # 首先检查 **decision** 格式（Markdown 粗体）
+                if '**decision**' in content_lower:
+                    for line in content.split('\n'):
+                        if '**decision**' in line.lower():
+                            # 清理并提取
+                            line_clean = line.replace('*', '').replace(':', ' ').lower()
+                            words = line_clean.split()
+                            if 'yes' in words:
+                                logger.debug(f"Decision: YES (line: {line[:50]})")
+                                return True
+                            elif 'no' in words:
+                                logger.debug(f"Decision: NO (line: {line[:50]})")
+                                return False
+
+                # 检查 decision: 格式（无星号）
+                if 'decision:' in content_lower:
+                    for line in content.split('\n'):
+                        if 'decision:' in line.lower():
+                            # 提取 decision 后面的值
+                            decision_part = line.split('decision:')[1].strip().lower()
+                            if decision_part.startswith('yes') or decision_part.startswith('``yes'):
+                                logger.debug(f"Decision: YES (line: {line[:50]})")
+                                return True
+                            elif decision_part.startswith('no') or decision_part.startswith('``no'):
+                                logger.debug(f"Decision: NO (line: {line[:50]})")
+                                return False
+
+                # 降级到简单格式检查
+                # 检查第一行是否直接是 YES/NO
+                first_line = content_stripped.split('\n')[0] if content_stripped else ''
+                first_word = first_line.split()[0].lower() if first_line else ''
+
+                if first_word in ['yes', 'yes', 'yes.', 'yes,']:
+                    logger.debug(f"Decision: YES (first word)")
+                    return True
+                elif first_word in ['no', 'no.', 'no,']:
+                    logger.debug(f"Decision: NO (first word)")
+                    return False
+
+                # 检查中文
+                if first_word in ['相关', '是']:
+                    logger.debug(f"Decision: YES (Chinese)")
+                    return True
+                elif first_word in ['不相关', '否', '不是']:
+                    logger.debug(f"Decision: NO (Chinese)")
+                    return False
+
+                # 最后检查内容中是否包含明确的关键词/判断
+                # 特别处理：如果包含 "Scientific application: No" 等分析格式
+
+                # 1. 检查分析格式中的明确判断
+                analysis_patterns = [
+                    ('scientific application: no', False),
+                    ('scientific application: yes', True),
+                    ('agent presence: no', False),
+                    ('not relevant', False),
+                    ('relevant for scientific', True),
+                ]
+
+                for pattern, value in analysis_patterns:
+                    if pattern in content_lower:
+                        logger.debug(f"Decision: {value} (analysis pattern: {pattern})")
+                        return value
+
+                # 2. 检查是否有明确的 YES 声明
+                yes_patterns = [
+                    'decision: yes',
+                    'decision:``yes',
+                    '"decision": yes',
+                    '**decision**: yes',
+                    ': yes (agent',
+                    ': yes (scientific',
+                ]
+                for pattern in yes_patterns:
+                    if pattern in content_lower:
+                        logger.debug(f"Decision: YES (pattern: {pattern})")
+                        return True
+
+                # 3. 检查 NO 模式
+                no_patterns = [
+                    'decision: no',
+                    'decision:``no',
+                    '"decision": no',
+                    '**decision**: no',
+                    ': no (not',
+                    ': no (focuses',
+                    'scientific application: no',
+                    'not a scientific',
+                    'no (focuses on',
+                ]
+                for pattern in no_patterns:
+                    if pattern in content_lower:
+                        logger.debug(f"Decision: NO (pattern: {pattern})")
+                        return False
+                    ': no (focuses',
+                ]
+                for pattern in no_patterns:
+                    if pattern in content_lower:
+                        logger.debug(f"Decision: NO (pattern: {pattern})")
+                        return False
+
+                # 默认降级：根据内容中的关键词判断
+                has_yes_indicators = any(w in content_lower for w in ['yes', '相关', 'relevant', 'pass'])
+                has_no_indicators = any(w in content_lower for w in ['not relevant', '不相关', 'fail', 'no'])
+
+                if has_yes_indicators and not has_no_indicators:
+                    logger.debug(f"Decision: YES (keyword fallback)")
+                    return True
+                elif has_no_indicators and not has_yes_indicators:
+                    logger.debug(f"Decision: NO (keyword fallback)")
+                    return False
+
+                # 完全无法判断，记录日志
+                logger.warning(f"无法解析 AI 判断结果，内容前 200 字符: {content[:200]}")
+                return False
             else:
                 logger.debug(f'Claude Code CLI 调用失败: {result.stderr}')
                 # 降级到关键词判断

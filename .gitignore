@@ -47,6 +47,10 @@ data/*.db-shm
 data/*.db-wal
 data/*.db-journal
 
+# PDF 文件
+data/papers/*.pdf
+data/papers/**/*.pdf
+
 # 临时文件
 *.tmp
 .DS_Store

@@ -26,6 +26,7 @@ from src.processors.summarizer import PaperSummarizer
 from src.formatters.feishu_formatter import FeishuFormatter
 from src.utils.logger import setup_logger
 from src.utils.storage import PaperStorage
+from src.utils.pdf_downloader import PDFDownloader
 
 # 加载环境变量
 load_dotenv()
@@ -88,9 +89,13 @@ class ResearchBriefingSystem:
             self.ai_filter = AIFilter(filter_config)
 
         # 初始化总结器
-        self.summarizer = PaperSummarizer(
-            {**self.config.get('summarizer', {}), **self.config.get('ai_filter', {})}
-        )
+        summarizer_config = {**self.config.get('summarizer', {}), **self.config.get('ai_filter', {})}
+        # 添加 PDF 下载配置
+        pdf_config = self.config.get('pdf_download', {})
+        if pdf_config.get('enabled', False):
+            summarizer_config['pdf_download'] = pdf_config
+
+        self.summarizer = PaperSummarizer(summarizer_config)
 
         # 初始化格式化器
         self.formatter = FeishuFormatter(
@@ -175,13 +180,30 @@ class ResearchBriefingSystem:
             self.logger.warning('AI 过滤后没有相关论文')
             return self._create_empty_briefing(target_date)
 
-        # 4. 生成总结
+        # 4. 下载 PDF（如果启用）
+        pdf_config = self.config.get('pdf_download', {})
+        if pdf_config.get('enabled', False):
+            self.logger.info(f'开始下载 {len(relevant_papers)} 篇论文的 PDF...')
+            pdf_downloader = PDFDownloader(pdf_config)
+
+            for i, paper in enumerate(relevant_papers):
+                if paper.get('pdf_url'):
+                    self.logger.debug(f'[{i+1}/{len(relevant_papers)}] 下载 PDF: {paper.get("title", "")[:50]}...')
+                    pdf_path = pdf_downloader.download_paper(paper)
+                    if pdf_path:
+                        paper['pdf_path'] = pdf_path
+
+            # 输出存储信息
+            storage_info = pdf_downloader.get_storage_info()
+            self.logger.info(f'PDF 存储信息: {storage_info}')
+
+        # 5. 生成总结
         summarized_papers = self.summarizer.summarize_papers(relevant_papers)
 
-        # 5. 标记为已处理
+        # 6. 标记为已处理
         self.storage.mark_papers_processed(summarized_papers, target_date.strftime('%Y-%m-%d'))
 
-        # 6. 构建早报数据
+        # 7. 构建早报数据
         briefing_data = {
             'date': target_date.strftime('%Y-%m-%d'),
             'update_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
@@ -190,7 +212,7 @@ class ResearchBriefingSystem:
             'platforms': list(set(p.get('platform', '') for p in summarized_papers))
         }
 
-        # 7. 保存早报
+        # 8. 保存早报
         self.storage.save_briefing(target_date.strftime('%Y-%m-%d'), briefing_data)
 
         self.logger.info(f'早报生成完成，包含 {len(summarized_papers)} 篇论文')

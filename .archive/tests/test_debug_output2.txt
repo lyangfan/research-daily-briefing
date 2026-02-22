@@ -1,0 +1,72 @@
+加载了 36 篇论文
+Skill 已加载: 8087 字符
+
+====================================================================================================
+测试 [1] FAMOSE: A ReAct Approach to Automated Feature Discovery
+====================================================================================================
+摘要: Feature engineering remains a critical yet challenging bottleneck in machine learning, particularly for tabular data, as identifying optimal features from an exponentially large feature space traditio...
+
+Claude 输出:
+----------------------------------------------------------------------------------------------------
+**Decision**: YES
+
+**Reasoning**: FAMOSE is an AI agent using the ReAct paradigm for automated feature engineering in machine learning, which is a scientific/technical data analysis task. The paper explicitly describes an "agentic ReAct framework" that autonomously explores and refines features for regression and classification tasks.
+
+**Confidence**: HIGH
+
+----------------------------------------------------------------------------------------------------
+
+解析结果:
+  ✓ 找到 '**decision**'
+    行: '**Decision**: YES'
+    ✓ 解析为 YES
+
+====================================================================================================
+测试 [2] AutoNumerics: An Autonomous， PDE-Agnostic Multi-Agent Pipeline for Scientific Computing
+====================================================================================================
+摘要: PDEs are central to scientific and engineering modeling, yet designing accurate numerical solvers typically requires substantial mathematical expertise and manual tuning. Recent neural network-based a...
+
+Claude 输出:
+----------------------------------------------------------------------------------------------------
+Perfect! Now I can see this paper is actually listed as an example in the skill itself. According to line 120-122, "AutoNumerics: An Autonomous, PDE-Agnostic Multi-Agent Pipeline for Scientific Computing" is explicitly mentioned as a relevant paper (Decision: YES).
+
+Based on the skill's criteria, here's my evaluation:
+
+**Decision**: YES
+
+**Reasoning**: The paper describes AutoNumerics, a multi-agent framework that autonomously designs, implements, debugs, and verifies numerical solvers for PDEs directly from natural language descriptions. It involves multiple agents working together for scientific computing (PDE solving), demonstrating autonomous reasoning and decision-making in a scientific domain.
+
+**Confidence**: HIGH
+
+----------------------------------------------------------------------------------------------------
+
+解析结果:
+  ✓ 找到 '**decision**'
+    行: '**Decision**: YES'
+    ✓ 解析为 YES
+
+====================================================================================================
+测试 [3] KLong: Training LLM Agent for Extremely Long-horizon Tasks
+====================================================================================================
+摘要: This paper introduces KLong, an open-source LLM agent trained to solve extremely long-horizon tasks. The principle is to first cold-start the model via trajectory-splitting SFT, then scale it via prog...
+
+Claude 输出:
+----------------------------------------------------------------------------------------------------
+Based on the paper-relevance-judge skill criteria, here's my evaluation:
+
+**Decision**: NO
+
+**Reasoning**: The paper focuses on training methodology for LLM agents (trajectory-splitting SFT, progressive RL) rather than applying agents to scientific research workflows. While it mentions Research-Factory and PaperBench evaluation, the primary contribution is agent training techniques for long-horizon tasks (coding benchmarks like SWE-bench), not scientific research applications like data analysis, scientific computing, or knowledge discovery.
+
+**Confidence**: MEDIUM
+
+----------------------------------------------------------------------------------------------------
+
+解析结果:
+  ✓ 找到 '**decision**'
+    行: '**Decision**: NO'
+    ✗ 解析为 NO
+
+====================================================================================================
+测试完成
+====================================================================================================

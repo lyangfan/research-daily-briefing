@@ -107,19 +107,19 @@ ai_filter:
     enabled: true
     provider: "zhipu"                # "openai" 或 "zhipu"
     model: "embedding-3"             # 智谱 embedding 模型
-    similarity_threshold: 0.60       # 相似度阈值 (0-1) - 降低以捕获更多相关论文
+    similarity_threshold: 0.50       # 相似度阈值 (0-1) - 降低以捕获更多相关论文
     # 描述你想要查找的内容（涵盖交叉学科、数据处理、生物信息学等场景）
     query: |
-      AI agents and multi-agent systems for scientific research,
-      autonomous research assistants, LLM-powered scientific tools,
-      machine learning agents for discovery and automation,
-      automated scientific tools, AI-powered research workflows,
-      academic illustration and visualization, scientific figure generation,
-      research productivity tools, AI for scientists, automated discovery,
-      AI applications in smart agriculture and animal genetic breeding,
-      autonomous systems for statistical genetics and bioinformatics,
-      LLM agents for R and Python data analysis, automated LaTeX generation,
-      AI-assisted statistical modeling, computational biology workflows
+      AI agents, multi-agent systems, and autonomous agents for scientific applications,
+      LLM-powered agents and tools, agentic systems and workflows,
+      intelligent agents for research automation and scientific computing,
+      AI assistants for data analysis, medical diagnosis, and decision support,
+      agent-based workflow orchestration and scientific pipelines,
+      multi-agent reinforcement learning and autonomous agents,
+      agentic AI systems for data management, computational workflows,
+      collaborative agents and human-AI interaction in research,
+      autonomous systems for knowledge discovery and scientific exploration,
+      AI agents in healthcare, bioinformatics, and computational biology
 
   # AI 判断相关性的提示词模板
   relevance_prompt: |
@@ -157,9 +157,17 @@ summarizer:
 
     论文标题：{title}
     作者：{authors}
-    摘要：{abstract}
+    {content}
 
     请用 200-300 字总结，要简洁清晰。
+
+# PDF 下载配置
+pdf_download:
+  enabled: true                      # 是否启用 PDF 下载
+  storage_dir: "data/papers"         # PDF 存储目录
+  max_text_length: 30000             # 提取的最大文本长度（字符数）
+  timeout: 60                        # 下载超时（秒）
+  user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"  # 用户代理
 
 # OpenClaw 配置
 openclaw:

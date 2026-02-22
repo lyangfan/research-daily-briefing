@@ -1,0 +1,57 @@
+====================================================================================================
+使用修复后的 paper-relevance-judge skill 重新测试 36 篇论文
+====================================================================================================
+开始时间: 2026年 2月23日 星期一 01时23分39秒 CST
+
+✅ 加载了 36 篇论文
+✅ Skill 已加载: 8087 字符
+✅ Claude Code: /usr/local/bin/claude
+
+[1/36] FAMOSE: A ReAct Approach to Automated Feature Discovery... | 预计剩余: 0s ✗ NO
+[2/36] AutoNumerics: An Autonomous， PDE-Agnostic Multi-Agent P... | 预计剩余: 348s ✓ YES
+[3/36] KLong: Training LLM Agent for Extremely Long-horizon Ta... | 预计剩余: 346s ✓ YES
+[4/36] Evaluating Chain-of-Thought Reasoning through Reusabili... | 预计剩余: 295s ✗ NO
+[5/36] MedClarify: An information-seeking AI agent for medical... | 预计剩余: 342s ✓ YES
+[6/36] Federated Latent Space Alignment for Multi-user Semanti... | 预计剩余: 314s ✗ NO
+[7/36] From Labor to Collaboration: A Methodological Experimen... | 预计剩余: 285s ✓ YES
+[8/36] Retaining Suboptimal Actions to Follow Shifting Optima ... | 预计剩余: 261s ✗ NO
+[9/36] IntentCUA: Learning Intent-level Representations for Sk... | 预计剩余: 237s ✗ NO
+[10/36] Phase-Aware Mixture of Experts for Agentic Reinforcemen... | 预计剩余: 240s ✓ YES
+[11/36] Transforming Behavioral Neuroscience Discovery with In-... | 预计剩余: 223s ✗ NO
+[12/36] A Unified Framework for Locality in Scalable MARL... | 预计剩余: 211s ✗ NO
+[13/36] Automating Agent Hijacking via Structural Template Inje... | 预计剩余: 225s ✗ NO
+[14/36] LLM4Cov: Execution-Aware Agentic Learning for High-cove... | 预计剩余: 208s ✗ NO
+[15/36] Beyond Message Passing: A Symbolic Alternative for Expr... | 预计剩余: 196s ✗ NO
+[16/36] Mind the GAP: Text Safety Does Not Transfer to Tool-Cal... | 预计剩余: 185s ✗ NO
+[17/36] Discovering Multiagent Learning Algorithms with Large L... | 预计剩余: 171s ✗ NO
+[18/36] AgentLAB: Benchmarking LLM Agents against Long-Horizon ... | 预计剩余: 160s ✗ NO
+[19/36] AdaptOrch: Task-Adaptive Multi-Agent Orchestration in t... | 预计剩余: 150s ✗ NO
+[20/36] Policy Compiler for Secure Agentic Systems... | 预计剩余: 138s ✗ NO
+[21/36] Calibrate-Then-Act: Cost-Aware Exploration in LLM Agent... | 预计剩余: 131s ✗ NO
+[22/36] Towards a Science of AI Agent Reliability... | 预计剩余: 122s ✗ NO
+[23/36] DataJoint 2.0: A Computational Substrate for Agentic Sc... | 预计剩余: 112s ✓ YES
+[24/36] Team of Thoughts: Efficient Test-time Scaling of Agenti... | 预计剩余: 130s ✗ NO
+[25/36] Causally-Guided Automated Feature Engineering with Mult... | 预计剩余: 119s ✓ YES
+[26/36] Multi-agent cooperation through in-context co-player in... | 预计剩余: 108s ✗ NO
+[27/36] Toward Scalable Verifiable Reward: Proxy State-Based Ev... | 预计剩余: 100s ✗ NO
+[28/36] The Emergence of Lab-Driven Alignment Signatures: A Psy... | 预计剩余: 95s ✗ NO
+[29/36] Label-Consistent Data Generation for Aspect-Based Senti... | 预计剩余: 83s ✗ NO
+[30/36] Helpful to a Fault: Measuring Illicit Assistance in Mul... | 预计剩余: 70sTraceback (most recent call last):
+  File "<stdin>", line 78, in <module>
+  File "/Users/liuyangfan/Documents/code/research-daily-briefing/src/processors/ai_filter.py", line 216, in _check_relevance
+    result = subprocess.run(
+        [
+    ...<6 lines>...
+        env={**os.environ, 'CLAUDECODE': ''}
+    )
+  File "/opt/anaconda3/lib/python3.13/subprocess.py", line 556, in run
+    stdout, stderr = process.communicate(input, timeout=timeout)
+                     ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.13/subprocess.py", line 1222, in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+                     ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.13/subprocess.py", line 2128, in _communicate
+    ready = selector.select(timeout)
+  File "/opt/anaconda3/lib/python3.13/selectors.py", line 398, in select
+    fd_event_list = self._selector.poll(timeout)
+KeyboardInterrupt
