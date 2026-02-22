@@ -140,6 +140,9 @@ ai_filter:
 summarizer:
   language: "zh-CN"  # 总结语言
   max_length: 300    # 每篇总结的最大字数
+  # 超时配置（支持外部 Skill 调用）
+  single_paper_timeout: 600   # 单篇论文总结超时（秒）- 默认 10 分钟
+  batch_timeout: 900          # 批量总结超时（秒）- 默认 15 分钟
 
   # 总结提示词模板
   prompt: |

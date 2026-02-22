@@ -30,6 +30,10 @@ class PaperSummarizer:
         self.language = config.get('language', 'zh-CN')
         self.max_length = config.get('max_length', 300)
 
+        # 超时配置（支持外部 Skill 调用）
+        self.single_paper_timeout = config.get('single_paper_timeout', 600)  # 单篇论文超时（秒）
+        self.batch_timeout = config.get('batch_timeout', 900)  # 批量总结超时（秒）
+
         # 查找 claude 命令
         self.claude_path = self._find_claude()
         if not self.claude_path:
@@ -134,7 +138,7 @@ class PaperSummarizer:
                 ],
                 capture_output=True,
                 text=True,
-                timeout=120,  # 2分钟超时
+                timeout=self.single_paper_timeout,  # 可配置的超时时间
                 env={**os.environ, 'CLAUDECODE': ''}  # 清除 CLAUDECODE 环境变量
             )
 
@@ -219,7 +223,7 @@ class PaperSummarizer:
                 ],
                 capture_output=True,
                 text=True,
-                timeout=300,  # 5分钟超时（批量处理需要更长时间）
+                timeout=self.batch_timeout,  # 可配置的批量超时时间
                 env={**os.environ, 'CLAUDECODE': ''}
             )
 
