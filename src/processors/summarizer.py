@@ -39,7 +39,19 @@ class PaperSummarizer:
         if not self.claude_path:
             raise ValueError('未找到 Claude Code CLI，请确保已安装')
 
-        logger.info(f'总结器初始化完成 (Claude Code: {self.claude_path}, 语言: {self.language})')
+        # Skill 路径
+        self.skill_path = config.get('skill_path', '')
+        if self.skill_path:
+            logger.info(f'使用自定义 Skill: {self.skill_path}')
+        else:
+            # 默认使用项目内的 skill
+            project_root = Path(__file__).parent.parent.parent
+            self.skill_path = project_root / 'skills/paper-summarizer/SKILL.md'
+            logger.info(f'使用项目 Skill: {self.skill_path}')
+
+        self.use_skill = self.skill_path and self.skill_path.exists()
+
+        logger.info(f'总结器初始化完成 (Claude Code: {self.claude_path}, 语言: {self.language}, 使用 Skill: {self.use_skill})')
 
     def _find_claude(self) -> str:
         """
@@ -105,6 +117,86 @@ class PaperSummarizer:
         Returns:
             中文总结
         """
+        if self.use_skill:
+            return self._summarize_with_skill(paper)
+        else:
+            return self._summarize_with_prompt(paper)
+
+    def _summarize_with_skill(self, paper: Dict) -> str:
+        """
+        使用 Skill 总结论文
+
+        Args:
+            paper: 论文数据
+
+        Returns:
+            中文总结
+        """
+        # 准备论文数据
+        paper_data = json.dumps({
+            "title": paper.get('title', ''),
+            "authors": paper.get('authors', [])[:3],
+            "abstract": paper.get('abstract', ''),
+            "categories": paper.get('categories', [])[:3],
+            "url": paper.get('url', ''),
+            "platform": paper.get('platform', '')
+        }, ensure_ascii=False)
+
+        # 使用 skill 调用
+        try:
+            result = subprocess.run(
+                [
+                    self.claude_path,
+                    '--skill', str(self.skill_path),
+                    '--max-turns', '1',
+                ],
+                input=paper_data.encode('utf-8'),
+                capture_output=True,
+                text=True,
+                timeout=self.single_paper_timeout,
+                env={**os.environ, 'CLAUDECODE': ''}
+            )
+
+            if result.returncode == 0:
+                summary = result.stdout.strip()
+
+                # 清理可能的 markdown 代码块标记
+                if summary.startswith('```'):
+                    lines = summary.split('\n')
+                    if lines[0].startswith('```'):
+                        lines = lines[1:]
+                    if lines[-1].startswith('```'):
+                        lines = lines[:-1]
+                    summary = '\n'.join(lines).strip()
+
+                # 限制长度
+                if len(summary) > self.max_length:
+                    summary = summary[:self.max_length] + '...'
+
+                logger.debug(f'Skill 总结成功: {len(summary)} 字')
+                return summary
+            else:
+                logger.warning(f'Skill 调用失败: {result.stderr}')
+                # 降级到普通 prompt 模式
+                return self._summarize_with_prompt(paper)
+
+        except subprocess.TimeoutExpired:
+            logger.error('Skill 调用超时，降级到普通 prompt 模式')
+            return self._summarize_with_prompt(paper)
+        except Exception as e:
+            logger.error(f'Skill 调用失败: {e}，降级到普通 prompt 模式')
+            return self._summarize_with_prompt(paper)
+
+    def _summarize_with_prompt(self, paper: Dict) -> str:
+        """
+        使用普通 Prompt 总结论文（后备方案）
+
+        Args:
+            paper: 论文数据
+
+        Returns:
+            中文总结
+        """
         # 构建提示词
         prompt = self.config.get('prompt', (
             "请用中文总结以下论文，重点突出：\n"
@@ -120,11 +212,6 @@ class PaperSummarizer:
             authors=', '.join(paper.get('authors', [])[:3]),  # 只取前3个作者
             abstract=paper.get('abstract', '')
         )
-
-        # 使用临时文件存储提示词和结果
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as prompt_file:
-            prompt_file.write(prompt)
-            prompt_path = prompt_file.name
 
         try:
             # 调用 claude 命令

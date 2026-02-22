@@ -42,6 +42,10 @@ logs/*.log
 # 数据文件
 data/briefings/*.json
 !data/briefings/.gitkeep
+data/*.db
+data/*.db-shm
+data/*.db-wal
+data/*.db-journal
 
 # 临时文件
 *.tmp

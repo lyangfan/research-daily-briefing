@@ -144,6 +144,10 @@ summarizer:
   single_paper_timeout: 600   # 单篇论文总结超时（秒）- 默认 10 分钟
   batch_timeout: 900          # 批量总结超时（秒）- 默认 15 分钟
 
+  # Skill 配置（使用自定义 Skill 进行总结）
+  skill_path: "skills/paper-summarizer/SKILL.md"  # Skill 文件路径（相对于项目根目录）
+  # 留空则使用内置 prompt
+
   # 总结提示词模板
   prompt: |
     请用中文总结以下论文，重点突出：

@@ -1,0 +1,20 @@
+{
+  "name": "paper-summarizer",
+  "description": "专业总结科研论文，提取研究问题、方法创新和关键结果",
+  "version": "1.0.0",
+  "author": "Research Briefing System",
+  "categories": [
+    "research",
+    "academic",
+    "nlp",
+    "summarization"
+  ],
+  "scripts": {
+    "summarize": "python3 -c \"import sys, json; data = json.load(sys.stdin); print(f'Title: {data[\\\"title\\\"]}\\\\nAbstract: {data[\\\"abstract\\\"]}')\""
+  },
+  "config": {
+    "max_length": 300,
+    "language": "zh-CN",
+    "format": "structured"
+  }
+}
