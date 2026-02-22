@@ -1,0 +1,139 @@
+# 科研早报系统配置文件
+
+# 论文平台配置
+platforms:
+  arxiv:
+    enabled: true
+    # arXiv 分类代码
+    categories:
+      - cs.AI    # 人工智能
+      - cs.CL    # 计算与语言
+      - cs.LG    # 机器学习
+      - cs.NE    # 神经网络
+      - cs.CR    # 密码学
+      - cs.CV    # 计算机视觉
+    rss_url: "http://export.arxiv.org/rss/"
+
+  biorxiv:
+    enabled: true
+    # bioRxiv 分区
+    sections:
+      - bioinformatics
+    api_url: "https://api.biorxiv.org/details/biorxiv"
+
+  medrxiv:
+    enabled: true
+    sections:
+      - health-informatics
+    api_url: "https://api.medrxiv.org/details/medrxiv"
+
+  ssrn:
+    enabled: false  # SSRN API 较复杂，暂时禁用
+
+# AI 过滤配置
+ai_filter:
+  # 过滤模式: "keywords" | "embedding" | "claude" | "hybrid"
+  mode: "hybrid"
+
+  model: "claude-3-5-sonnet-20241022"
+  max_papers: 30  # 每天最多处理多少篇论文
+  max_summary_papers: 10  # 早报中最多包含多少篇
+
+  # 相关性判断的关键词（用于初筛）
+  keywords:
+    # Agent 相关
+    - "multi-agent"
+    - "multi agent"
+    - "AI agent"
+    - "AI-agent"
+    - "autonomous agent"
+    - "LLM agent"
+    - "LLM-agent"
+    - "large language model agent"
+    - "agent system"
+    - "agent-based"
+    - "intelligent agent"
+    - "software agent"
+    - "deep learning agent"
+
+    # 科研自动化相关
+    - "research automation"
+    - "scientific agent"
+    - "automating research"
+    - "automation"
+    - "AI for science"
+    - "AI scientists"
+    - "scientific workflow"
+    - "research workflow"
+    - "academic tools"
+    - "scientific discovery"
+    - "automated discovery"
+
+    # 学习方法
+    - "reinforcement learning"
+    - "multi-agent rl"
+
+  # Embedding 配置
+  embedding:
+    enabled: true
+    provider: "zhipu"                # "openai" 或 "zhipu"
+    model: "embedding-3"             # 智谱 embedding 模型
+    similarity_threshold: 0.60       # 相似度阈值 (0-1) - 降低以捕获更多相关论文
+    # 描述你想要查找的内容
+    query: |
+      AI agents and multi-agent systems for scientific research,
+      autonomous research assistants, LLM-powered scientific tools,
+      machine learning agents for discovery and automation,
+      automated scientific tools, AI-powered research workflows,
+      academic illustration and visualization, scientific figure generation,
+      research productivity tools, AI for scientists, automated discovery
+
+  # AI 判断相关性的提示词模板
+  relevance_prompt: |
+    请判断以下论文是否与"科研相关的 AI Agent"相关。
+
+    判断标准：
+    1. 是否涉及多智能体系统 (multi-agent systems)
+    2. 是否涉及 AI/LLM Agent 的研究
+    3. 是否涉及自动化科研工具或方法论
+    4. 是否涉及强化学习在智能体中的应用
+
+    论文标题：{title}
+    论文摘要：{abstract}
+
+    请只回答 "相关" 或 "不相关"，不要解释。
+
+# 总结生成配置
+summarizer:
+  language: "zh-CN"  # 总结语言
+  max_length: 300    # 每篇总结的最大字数
+
+  # 总结提示词模板
+  prompt: |
+    请用中文总结以下论文，重点突出：
+    1. 研究问题和动机
+    2. 主要方法和创新点
+    3. 关键结果
+
+    论文标题：{title}
+    作者：{authors}
+    摘要：{abstract}
+
+    请用 200-300 字总结，要简洁清晰。
+
+# OpenClaw 配置
+openclaw:
+  feishu_target: ""  # 飞书群或用户ID（需要在 .env 中配置）
+  gateway_url: "http://127.0.0.1:18789"  # OpenClaw Gateway 地址
+  send_time: "07:00"
+
+# 数据存储配置
+storage:
+  briefings_dir: "data/briefings"
+  processed_papers_file: "data/processed_papers.json"
+  retain_days: 90  # 保留多少天的数据
+
+# 日志配置
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  retain_days: 30
