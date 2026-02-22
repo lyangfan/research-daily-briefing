@@ -72,9 +72,35 @@ ai_filter:
     - "scientific discovery"
     - "automated discovery"
 
+    # 数据分析与编程工具
+    - "data analysis"
+    - "statistical modeling"
+    - "automated analysis"
+    - "python for research"
+    - "r for research"
+    - "code generation"
+    - "latex automation"
+
+    # 生物信息学与生命科学
+    - "bioinformatics"
+    - "computational biology"
+    - "genetic analysis"
+    - "genomics"
+    - "sequence analysis"
+    - "biological data"
+
+    # 农业与交叉学科
+    - "smart agriculture"
+    - "agricultural AI"
+    - "animal breeding"
+    - "statistical genetics"
+    - "genetic breeding"
+    - "precision agriculture"
+
     # 学习方法
     - "reinforcement learning"
     - "multi-agent rl"
+    - "machine learning"
 
   # Embedding 配置
   embedding:
@@ -82,14 +108,18 @@ ai_filter:
     provider: "zhipu"                # "openai" 或 "zhipu"
     model: "embedding-3"             # 智谱 embedding 模型
     similarity_threshold: 0.60       # 相似度阈值 (0-1) - 降低以捕获更多相关论文
-    # 描述你想要查找的内容
+    # 描述你想要查找的内容（涵盖交叉学科、数据处理、生物信息学等场景）
     query: |
       AI agents and multi-agent systems for scientific research,
       autonomous research assistants, LLM-powered scientific tools,
       machine learning agents for discovery and automation,
       automated scientific tools, AI-powered research workflows,
       academic illustration and visualization, scientific figure generation,
-      research productivity tools, AI for scientists, automated discovery
+      research productivity tools, AI for scientists, automated discovery,
+      AI applications in smart agriculture and animal genetic breeding,
+      autonomous systems for statistical genetics and bioinformatics,
+      LLM agents for R and Python data analysis, automated LaTeX generation,
+      AI-assisted statistical modeling, computational biology workflows
 
   # AI 判断相关性的提示词模板
   relevance_prompt: |
