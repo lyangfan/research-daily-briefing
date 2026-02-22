@@ -156,12 +156,22 @@ class BiorxivFetcher(BaseFetcher):
             # 清理作者名
             authors = [a.strip() for a in authors if a.strip()]
 
-            # 构建 PDF URL
-            landing_page = entry.get('landing_page_url', '') or entry.get('doi_url', '')
-            pdf_url = entry.get('pdf_url', '') or f"{landing_page}.full.pdf"
+            # 从 DOI 构造 URL
+            doi = entry.get('doi', '')
+            if doi:
+                # DOI 格式: 10.1101/2024.03.26.586795
+                # landing page: https://www.biorxiv.org/content/10.1101/2024.03.26.586795
+                # PDF URL: https://www.biorxiv.org/content/10.1101/2024.03.26.586795v2.full.pdf
+                version = entry.get('version', '')
+                version_suffix = f'v{version}' if version and version != '1' else ''
+                landing_page = f"https://www.{self.platform}.org/content/{doi}{version_suffix}"
+                pdf_url = f"{landing_page}.full.pdf"
+            else:
+                landing_page = ''
+                pdf_url = ''
 
             return {
-                'id': f"{self.platform}:{entry.get('doi', '')}",
+                'id': f"{self.platform}:{doi}",
                 'title': entry.get('title', ''),
                 'authors': authors,
                 'abstract': entry.get('abstract', '').replace('<p>', '').replace('</p>', ''),
@@ -169,7 +179,7 @@ class BiorxivFetcher(BaseFetcher):
                 'pdf_url': pdf_url,  # PDF 下载链接
                 'published_date': entry.get('date', ''),
                 'categories': [entry.get('category', '')],
-                'doi': entry.get('doi', ''),
+                'doi': doi,
                 'version': entry.get('version', '')
             }
         except Exception as e:
