@@ -4,22 +4,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-This is a macOS-based automated system that monitors preprint platforms (arXiv, bioRxiv, medRxiv) for research papers related to "AI Agents for Scientific Research," filters them using AI, generates Chinese summaries, and sends them to Feishu (Lark) via OpenClaw Gateway.
+This is an automated system that monitors preprint platforms (arXiv, bioRxiv, medRxiv) for research papers related to "AI Agents for Scientific Research," filters them using AI, and generates Chinese summaries saved to local files.
 
 ## Development Commands
 
 ### Running the System
 
 ```bash
-# Complete workflow: fetch → filter → summarize → output to stdout
-# This is the recommended command for OpenClaw integration
+# Complete workflow: fetch → filter → summarize → generate output files
 python3 src/main.py run
 
 # Fetch and process papers only (saves to database, no output)
 python3 src/main.py fetch
 
-# Send the briefing to Feishu via OpenClaw
-python3 src/main.py send
+# View statistics
+python3 src/main.py stats
 
 # Test message formatting (doesn't send)
 python3 src/main.py test
@@ -44,20 +43,9 @@ python3 src/main.py fetch --date 2026-02-20
 python3 src/main.py send --date 2026-02-20
 ```
 
-### Service Management (macOS launchd)
+### Service Management
 
-```bash
-# Check service status
-launchctl list | grep research.briefing
-
-# Load/unload services
-launchctl load ~/Library/LaunchAgents/com.research.briefing.fetch.plist
-launchctl load ~/Library/LaunchAgents/com.research.briefing.send.plist
-
-# Unload services
-launchctl unload ~/Library/LaunchAgents/com.research.briefing.fetch.plist
-launchctl unload ~/Library/LaunchAgents/com.research.briefing.send.plist
-```
+No scheduled tasks configured. Run manually with `python3 src/main.py run`.
 
 ### Viewing Logs
 
@@ -74,7 +62,7 @@ tail -f logs/*.log
 ### Core Flow
 
 ```
-launchd (scheduler) → Python Main → Fetchers → AI Filter → PDF Download → Summarizer → Storage → Formatter → OpenClaw Gateway → Feishu
+Python Main → Fetchers → AI Filter → PDF Download → Summarizer → Storage → Formatter → Output Files
 ```
 
 ### Key Components
@@ -82,7 +70,7 @@ launchd (scheduler) → Python Main → Fetchers → AI Filter → PDF Download 
 **Entry Point**: `src/main.py`
 - `ResearchBriefingSystem` class orchestrates the workflow
 - Commands: `run`, `fetch`, `send`, `test`, `cleanup`, `stats`
-- `run` command outputs formatted briefing to stdout (for OpenClaw)
+- `run` command generates output files to `data/briefings/output/`
 - `fetch` command processes and saves to database only
 
 **Fetchers** (`src/fetchers/`):
@@ -104,7 +92,7 @@ launchd (scheduler) → Python Main → Fetchers → AI Filter → PDF Download 
 - Automatic cleanup (90-day retention), VACUUM, REINDEX
 
 **Formatter** (`src/formatters/feishu_formatter.py`):
-- Formats briefing messages for Feishu
+- Formats briefing messages
 - Supports markdown-style formatting
 
 **PDF Downloader** (`src/utils/pdf_downloader.py`):
@@ -159,9 +147,7 @@ summarizer:
 ```
 
 **`.env`**: Environment variables (create manually)
-- `OPENCLAW_GATEWAY_TOKEN`: OpenClaw Gateway token
-- `OPENCLAW_FEISHI_TARGET`: Feishu target ID
-- `ZHIPU_API_KEY`: Zhipu AI API key for embeddings
+- `ZHIPU_API_KEY`: Zhipu AI API key for embeddings (optional)
 
 ## Important Architecture Notes
 
@@ -187,7 +173,7 @@ summarizer:
 
 7. **Error Handling**: Individual paper failures don't stop the process. System continues and logs errors.
 
-8. **Scheduled Execution**: macOS launchd handles daily automation with system wake support (5:55 AM wake for 6:00 AM execution).
+8. **Manual Execution**: Run `python3 src/main.py run` manually to generate briefings.
 
 ## Project Structure
 
@@ -225,6 +211,5 @@ research-daily-briefing/
 │   │   └── output/                 # TXT files
 │   ├── papers/                     # Temporary PDF storage
 │   └── briefings.db                # SQLite database
-├── logs/                           # Log files
-└── launchd/                        # launchd plist files
+└── logs/                           # Log files
 ```

@@ -1,6 +1,6 @@
 # 科研早报自动化系统
 
-每天自动从 arXiv、bioRxiv、medRxiv 等预印本平台获取最新论文，使用 AI 智能过滤出与「AI Agents for Scientific Research」相关的内容，生成中文总结并通过 OpenClaw 发送到飞书。
+每天自动从 arXiv、bioRxiv、medRxiv 等预印本平台获取最新论文，使用 AI 智能过滤出与「AI Agents for Scientific Research」相关的内容，生成中文结构化总结并保存到本地。
 
 ## 功能特点
 
@@ -8,28 +8,24 @@
 - **PDF 全文处理**: 自动下载并提取 PDF 全文，生成包含具体数据的详细总结
 - **中文总结**: 使用 paper-summarizer skill 生成结构化中文摘要
 - **自动去重**: SQLite 数据库存储，避免重复处理
-- **定时执行**: macOS launchd 定时任务，支持休眠唤醒
 - **多平台支持**: arXiv, bioRxiv, medRxiv
 
 ## 系统架构
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ 你的 Mac (保持开盖，允许定时唤醒)                              │
-│                                                             │
-│  launchd 定时任务 (每天 6:00 & 7:00)                         │
+│  Python 脚本执行 (python3 src/main.py run)                  │
 │     ↓                                                       │
-│  Python 脚本执行:                                            │
 │     1. 从各平台采集新论文 (arXiv RSS/bioRxiv API)            │
 │     2. 关键词初筛                                           │
-│     3. Embedding/Claude CLI 过滤相关性                      │
+│     3. Claude CLI + skill 过滤相关性                        │
 │     4. 下载 PDF 全文                                         │
-│     5. Claude CLI 生成中文总结                              │
+│     5. Claude CLI + skill 生成中文总结                      │
 │     6. SQLite 存储去重                                       │
 │     ↓                                                       │
-│  OpenClaw Gateway (本地 127.0.0.1:18789)                    │
-│     ↓                                                       │
-│  发送到飞书                                                  │
+│  输出早报文件                                                │
+│     • data/briefings/output/YYYY-MM-DD.txt                  │
+│     • data/briefings/briefings/YYYY-MM-DD.json              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -39,7 +35,6 @@
 
 - macOS 12+
 - Python 3.9+
-- OpenClaw Gateway (已安装并运行)
 - **Claude Code CLI** (用于 AI 过滤和总结)
 
 ### 2. 快速安装
@@ -60,63 +55,31 @@ nano .env
 编辑 `.env` 文件：
 
 ```bash
-# OpenClaw 配置
-OPENCLAW_GATEWAY_TOKEN=你的网关token
-OPENCLAW_FEISHI_TARGET=你的飞书群ID或用户ID
-
 # Zhipu AI (用于 Embedding，可选)
 ZHIPU_API_KEY=你的智谱API密钥
 ```
 
 **注意**: 本系统使用 **Claude Code CLI** 进行 AI 处理，不需要配置 ANTHROPIC_API_KEY。
 
-### 4. 配置系统定时唤醒
-
-```bash
-# 允许定时事件唤醒系统
-sudo pmset -b schedpowerevents 1
-
-# 设置每天早上 5:55 自动唤醒
-sudo pmset repeat wake MTWRFSU 05:55:00
-```
-
-### 5. 安装 launchd 定时任务
-
-```bash
-# 复制配置文件
-cp launchd/com.research.briefing.fetch.plist ~/Library/LaunchAgents/
-cp launchd/com.research.briefing.send.plist ~/Library/LaunchAgents/
-
-# 加载任务
-launchctl load ~/Library/LaunchAgents/com.research.briefing.fetch.plist
-launchctl load ~/Library/LaunchAgents/com.research.briefing.send.plist
-```
-
 ## 使用方法
 
-### 完整流程（推荐，用于 OpenClaw）
+### 完整流程
 
 ```bash
-# 完整流程：采集 → 处理 → 输出早报内容到 stdout
+# 完整流程：采集 → 处理 → 生成早报文件
 python3 src/main.py run
 
 # 指定日期
 python3 src/main.py run --date 2026-02-20
 ```
 
-**说明**: `run` 命令会直接输出早报内容到标准输出，适合 OpenClaw 捕获并发送。
+**说明**: `run` 命令会生成早报文件到 `data/briefings/output/YYYY-MM-DD.txt`。
 
 ### 手动执行（调试用）
 
 ```bash
 # 采集和处理论文（保存到数据库）
 python3 src/main.py fetch
-
-# 发送早报到飞书（需要配置 OpenClaw）
-python3 src/main.py send
-
-# 测试消息格式（不实际发送）
-python3 src/main.py test
 
 # 查看统计信息
 python3 src/main.py stats
@@ -256,8 +219,7 @@ research-daily-briefing/
 │   │   ├── medrxiv/
 │   │   └── unknown/
 │   └── briefings.db                # SQLite 数据库
-├── logs/                           # 日志文件
-└── launchd/                        # launchd 配置
+└── logs/                           # 日志文件
 ```
 
 ## AI 过滤模式
@@ -312,27 +274,7 @@ research-daily-briefing/
 
 ## 故障排查
 
-### 1. 定时任务未执行
-
-```bash
-# 检查任务状态
-launchctl list | grep research.briefing
-
-# 查看任务日志
-log show --predicate 'process == "research.briefing"' --last 1h
-```
-
-### 2. OpenClaw 发送失败
-
-```bash
-# 检查 OpenClaw Gateway 状态
-openclaw gateway status
-
-# 测试手动发送
-openclaw message send --channel feishu --target "你的ID" --message "测试"
-```
-
-### 3. Claude CLI 调用失败
+### 1. Claude CLI 调用失败
 
 ```bash
 # 检查 Claude Code CLI
@@ -342,13 +284,13 @@ which claude
 claude --version
 ```
 
-### 4. PDF 下载失败
+### 2. PDF 下载失败
 
 检查 `config.yaml` 中的 PDF 配置：
 - `pdf_download.enabled: true`
 - 确保 `data/papers/` 目录存在且可写
 
-### 5. Embedding 过滤失败
+### 3. Embedding 过滤失败
 
 ```bash
 # 检查智谱 AI API Key
@@ -374,17 +316,15 @@ cat .env | grep ZHIPU
 ## 性能优化
 
 - **分页采集**: arXiv 支持批量获取（batch_size=100）
-- **并发处理**: ThreadPoolExecutor 并行处理（max_workers=4）
+- **并发处理**: ThreadPoolExecutor 并行处理（max_workers=2）
 - **SQLite 索引**: 快速查重和查询
 - **定期优化**: 自动 VACUUM 和 REINDEX
 
 ## 注意事项
 
-1. **Mac 需保持开盖**: 合盖会导致系统休眠，定时任务无法执行
-2. **允许定时唤醒**: 确保 `pmset` 配置正确
-3. **OpenClaw Gateway 运行**: 网关需要在后台运行
-4. **网络连接**: 采集需要稳定的网络连接
-5. **API 速率限制**: 注意平台 API 的调用频率限制
+1. **并行数限制**: `max_workers` 建议设为 2，过高会导致 Claude CLI 出现 "Execution error"
+2. **网络连接**: 采集需要稳定的网络连接
+3. **API 速率限制**: 注意平台 API 的调用频率限制
 
 ## 更新日志
 
@@ -415,6 +355,5 @@ MIT License
 ## 相关资源
 
 - [Claude Code CLI](https://claude.ai/code)
-- [OpenClaw Gateway](https://github.com/pandolia/openclaw)
 - [paper-relevance-judge Skill](skills/paper-relevance-judge/SKILL.md)
 - [paper-summarizer Skill](skills/paper-summarizer/SKILL.md)
