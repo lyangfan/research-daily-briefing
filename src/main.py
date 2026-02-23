@@ -180,8 +180,9 @@ class ResearchBriefingSystem:
             self.logger.warning('AI 过滤后没有相关论文')
             return self._create_empty_briefing(target_date)
 
-        # 4. 下载 PDF（如果启用）
+        # 4. 下载 PDF 并提取文本（如果启用）
         pdf_config = self.config.get('pdf_download', {})
+        pdf_downloader = None
         if pdf_config.get('enabled', False):
             self.logger.info(f'开始下载 {len(relevant_papers)} 篇论文的 PDF...')
             pdf_downloader = PDFDownloader(pdf_config)
@@ -192,6 +193,11 @@ class ResearchBriefingSystem:
                     pdf_path = pdf_downloader.download_paper(paper)
                     if pdf_path:
                         paper['pdf_path'] = pdf_path
+                        # 预先提取文本，避免并行总结时并发读取PDF
+                        pdf_text = pdf_downloader.extract_text(pdf_path)
+                        if pdf_text:
+                            paper['pdf_text'] = pdf_text
+                            self.logger.debug(f'[{i+1}/{len(relevant_papers)}] PDF 文本已提取: {len(pdf_text)} 字符')
 
             # 输出存储信息
             storage_info = pdf_downloader.get_storage_info()
@@ -203,7 +209,12 @@ class ResearchBriefingSystem:
         # 6. 标记为已处理
         self.storage.mark_papers_processed(summarized_papers, target_date.strftime('%Y-%m-%d'))
 
-        # 7. 构建早报数据
+        # 7. 清理 PDF 文件（如果启用自动清理）
+        if pdf_downloader and pdf_config.get('auto_cleanup', False):
+            self.logger.info('自动清理 PDF 文件...')
+            pdf_downloader.cleanup_all_pdfs()
+
+        # 8. 构建早报数据
         briefing_data = {
             'date': target_date.strftime('%Y-%m-%d'),
             'update_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
@@ -327,6 +338,16 @@ def cmd_run(args):
 
     # 3. 输出到 stdout（OpenClaw 会捕获这个输出）
     print(message)
+
+    # 4. 同时保存到本地文件（用于测试和记录）
+    local_output_dir = PROJECT_ROOT / 'data' / 'briefings' / 'output'
+    local_output_dir.mkdir(parents=True, exist_ok=True)
+    local_output_file = local_output_dir / f'{target_date.strftime("%Y-%m-%d")}.txt'
+
+    with open(local_output_file, 'w', encoding='utf-8') as f:
+        f.write(message)
+
+    print(f"\n[本地备份] 早报已保存到: {local_output_file}", file=sys.stderr)
 
     system.logger.info(f'完整流程完成: {target_date}')
 

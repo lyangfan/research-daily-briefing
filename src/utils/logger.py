@@ -39,8 +39,9 @@ def setup_logger(
     if logger.handlers:
         return logger
 
-    # 控制台处理器（带颜色）
-    console_handler = colorlog.StreamHandler()
+    # 控制台处理器（输出到 stderr，避免与 OpenClaw 捕获的 stdout 混淆）
+    import sys
+    console_handler = colorlog.StreamHandler(sys.stderr)
     console_handler.setLevel(getattr(logging, level.upper()))
     console_format = colorlog.ColoredFormatter(
         '%(log_color)s%(asctime)s - %(name)s - %(levelname)s - %(message)s',

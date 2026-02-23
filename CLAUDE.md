@@ -4,17 +4,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-This is a macOS-based automated system that monitors preprint platforms (arXiv, bioRxiv, medRxiv, SSRN) for research papers related to "AI Agents for Scientific Research," filters them using AI, generates Chinese summaries, and sends them to Feishu (Lark) via OpenClaw Gateway.
+This is a macOS-based automated system that monitors preprint platforms (arXiv, bioRxiv, medRxiv) for research papers related to "AI Agents for Scientific Research," filters them using AI, generates Chinese summaries, and sends them to Feishu (Lark) via OpenClaw Gateway.
 
 ## Development Commands
 
 ### Running the System
 
 ```bash
-# Fetch and process papers from configured platforms
+# Complete workflow: fetch → filter → summarize → output to stdout
+# This is the recommended command for OpenClaw integration
+python3 src/main.py run
+
+# Fetch and process papers only (saves to database, no output)
 python3 src/main.py fetch
 
-# Send the briefing to Feishu
+# Send the briefing to Feishu via OpenClaw
 python3 src/main.py send
 
 # Test message formatting (doesn't send)
@@ -30,20 +34,14 @@ python3 src/main.py cleanup
 ### Date-Specific Operations
 
 ```bash
+# Run complete workflow for a specific date
+python3 src/main.py run --date 2026-02-20
+
 # Fetch papers for a specific date
 python3 src/main.py fetch --date 2026-02-20
 
 # Send briefing for a specific date
 python3 src/main.py send --date 2026-02-20
-```
-
-### Testing
-
-```bash
-# Run individual test files in project root
-python3 test_summarizer.py       # Test summarizer functionality
-python3 test_skill.py            # Test skill integration
-python3 test_pdf_*.py            # Test PDF processing variants
 ```
 
 ### Service Management (macOS launchd)
@@ -55,6 +53,20 @@ launchctl list | grep research.briefing
 # Load/unload services
 launchctl load ~/Library/LaunchAgents/com.research.briefing.fetch.plist
 launchctl load ~/Library/LaunchAgents/com.research.briefing.send.plist
+
+# Unload services
+launchctl unload ~/Library/LaunchAgents/com.research.briefing.fetch.plist
+launchctl unload ~/Library/LaunchAgents/com.research.briefing.send.plist
+```
+
+### Viewing Logs
+
+```bash
+# View today's log
+tail -f logs/research_briefing_$(date +%Y-%m-%d).log
+
+# View all recent logs
+tail -f logs/*.log
 ```
 
 ## Architecture
@@ -62,51 +74,89 @@ launchctl load ~/Library/LaunchAgents/com.research.briefing.send.plist
 ### Core Flow
 
 ```
-launchd (scheduler) → Shell Scripts → Python Main → Fetchers → AI Filter → Summarizer → Storage → Formatter → OpenClaw Gateway → Feishu
+launchd (scheduler) → Python Main → Fetchers → AI Filter → PDF Download → Summarizer → Storage → Formatter → OpenClaw Gateway → Feishu
 ```
 
 ### Key Components
 
 **Entry Point**: `src/main.py`
 - `ResearchBriefingSystem` class orchestrates the workflow
-- Commands: fetch, send, test, cleanup, stats
+- Commands: `run`, `fetch`, `send`, `test`, `cleanup`, `stats`
+- `run` command outputs formatted briefing to stdout (for OpenClaw)
+- `fetch` command processes and saves to database only
 
 **Fetchers** (`src/fetchers/`):
-- `base.py`: Abstract base class
-- `arxiv_fetcher.py`: RSS-based, with pagination support
-- `biorxiv_fetcher.py`: API-based for bioRxiv/medRxiv
+- `base.py`: Abstract base class with paper normalization
+- `arxiv_fetcher.py`: Atom/RSS API with pagination support (batch_size=100)
+- `biorxiv_fetcher.py`: bioRxiv/medRxiv public API
 - Each implements `fetch_papers(date, limit)` returning paper dictionaries
 
 **Processors** (`src/processors/`):
-- `ai_filter.py`: Claude Code CLI-based relevance filtering
-- `embedding_filter.py`: OpenAI/Zhipu AI embedding-based filtering
-- `summarizer.py`: Paper summarization using custom skill
-- Supports multiple filtering modes: hybrid, keywords-only, embedding-only, Claude-only
+- `ai_filter.py`: Multi-stage filtering (keywords → Claude CLI with paper-relevance-judge skill)
+- `embedding_filter.py`: OpenAI embedding-based semantic filtering
+- `zhipu_embedding_filter.py`: Zhipu AI embedding filtering
+- `summarizer.py`: Paper summarization using paper-summarizer skill with PDF support
+- Filtering modes: `hybrid`, `keywords`, `embedding`, `claude`
 
 **Storage** (`src/utils/storage.py`):
 - SQLite database at `data/briefings.db`
-- Tables: `briefings`, `processed_papers`
+- Tables: `briefings` (date-indexed), `processed_papers` (DOI-based deduplication)
 - Automatic cleanup (90-day retention), VACUUM, REINDEX
 
 **Formatter** (`src/formatters/feishu_formatter.py`):
 - Formats briefing messages for Feishu
+- Supports markdown-style formatting
 
-### Custom Skill Integration
+**PDF Downloader** (`src/utils/pdf_downloader.py`):
+- Downloads PDFs from arXiv, bioRxiv, medRxiv
+- Extracts text using PyMuPDF4LLM (Markdown-optimized)
+- Auto-cleanup after processing
 
-**`skills/paper-summarizer/SKILL.md`**: Specialized paper summarization skill
-- YAML frontmatter with metadata
+### Custom Skills
+
+**`skills/paper-relevance-judge/SKILL.md`**:
+- Judges if a paper is related to "AI Agents for Scientific Research"
+- Outputs: Decision (YES/NO), Reasoning, Confidence
+- Used by `ai_filter.py` for relevance filtering
+
+**`skills/paper-summarizer/SKILL.md`**:
+- Specialized paper summarization skill
 - Extracts: research problem, methods, results (with quantitative data), applications
-- Used by `summarizer.py` via Claude Code CLI skill invocation
-- Root-level `paper-summarizer.skill` is a ZIP archive
+- Used by `summarizer.py` via Claude Code CLI
+- Reference examples in `skills/paper-summarizer/references/EXAMPLES.md`
 
 ## Configuration
 
 **`config.yaml`**: Main configuration
-- Platform settings (categories, API URLs, batch sizes)
-- AI filtering mode and parameters
-- Summarizer settings (timeout, skill path)
-- OpenClaw integration
-- Storage options
+
+```yaml
+# Platform settings
+platforms:
+  arxiv:
+    categories: [cs.AI, cs.CL, cs.LG, cs.NE, cs.CR, cs.CV]
+    batch_size: 100
+  biorxiv:
+    sections: [bioinformatics]
+  medrxiv:
+    sections: [health-informatics]
+
+# AI filtering
+ai_filter:
+  mode: "hybrid"              # hybrid | keywords | embedding | claude
+  max_workers: 2              # Parallel threads (keep ≤2 to avoid errors)
+  max_summary_papers: 10      # Max papers in final briefing
+
+# PDF download
+pdf_download:
+  enabled: true
+  max_text_length: 30000
+  auto_cleanup: true
+
+# Summarizer
+summarizer:
+  single_paper_timeout: 600   # 10 minutes per paper
+  skill_path: "skills/paper-summarizer/SKILL.md"
+```
 
 **`.env`**: Environment variables (create manually)
 - `OPENCLAW_GATEWAY_TOKEN`: OpenClaw Gateway token
@@ -115,17 +165,66 @@ launchd (scheduler) → Shell Scripts → Python Main → Fetchers → AI Filter
 
 ## Important Architecture Notes
 
-1. **Claude Code CLI Integration**: The system uses Claude Code CLI (not direct Anthropic API calls) for AI filtering and summarization. This is invoked via shell commands in `src/processors/ai_filter.py` and `src/processors/summarizer.py`.
+1. **Claude Code CLI Integration**: The system uses Claude Code CLI (not direct Anthropic API calls) for AI filtering and summarization. Invoked via `subprocess` in `ai_filter.py` and `summarizer.py`.
 
-2. **Multi-Filter Strategy**: Papers go through a staged filtering process:
-   - Keyword matching (initial filter)
-   - Embedding similarity (if enabled)
-   - Claude CLI relevance judgment (final filter)
+2. **Multi-Stage Filtering**:
+   ```
+   Keywords (fast) → Embedding (semantic) → Claude CLI (precise)
+   ```
+   - Keyword matching filters ~80% of papers quickly
+   - Remaining papers go through Claude CLI with paper-relevance-judge skill
 
-3. **De-duplication**: `processed_papers` table tracks papers by DOI to prevent reprocessing.
+3. **Parallel Processing**: Uses `ThreadPoolExecutor` for concurrent AI calls. **Keep `max_workers ≤ 2`** to avoid "Execution error" from Claude CLI resource contention.
 
-4. **Skill-based Summarization**: The summarizer uses the custom `paper-summarizer` skill via Claude Code CLI's skill system, not inline prompts.
+4. **De-duplication**: `processed_papers` table tracks papers by DOI to prevent reprocessing across runs.
 
-5. **Error Handling**: Failures during fetch/summarize don't stop the entire process. The system continues with remaining papers and logs errors.
+5. **PDF Processing**: Downloads PDFs, extracts text with PyMuPDF4LLM, uses full text for summarization (not just abstract). Auto-deletes PDFs after processing.
 
-6. **Scheduled Execution**: macOS launchd services handle daily automation with wake-at-time support (5:55 AM for 6:00 AM execution).
+6. **Output Files**:
+   - `data/briefings/briefings/YYYY-MM-DD.json` - Full briefing data (JSON)
+   - `data/briefings/output/YYYY-MM-DD.txt` - Formatted text output (from `run` command)
+   - `logs/research_briefing_YYYY-MM-DD.log` - Daily log file
+
+7. **Error Handling**: Individual paper failures don't stop the process. System continues and logs errors.
+
+8. **Scheduled Execution**: macOS launchd handles daily automation with system wake support (5:55 AM wake for 6:00 AM execution).
+
+## Project Structure
+
+```
+research-daily-briefing/
+├── config.yaml                     # Main configuration
+├── .env                            # Environment variables
+├── src/
+│   ├── main.py                     # Entry point
+│   ├── fetchers/                   # Paper fetchers
+│   │   ├── base.py
+│   │   ├── arxiv_fetcher.py
+│   │   └── biorxiv_fetcher.py
+│   ├── processors/                 # AI processing
+│   │   ├── ai_filter.py
+│   │   ├── embedding_filter.py
+│   │   ├── zhipu_embedding_filter.py
+│   │   └── summarizer.py
+│   ├── formatters/
+│   │   └── feishu_formatter.py
+│   └── utils/
+│       ├── logger.py
+│       ├── storage.py
+│       └── pdf_downloader.py
+├── skills/                         # Claude Code Skills
+│   ├── paper-relevance-judge/
+│   │   └── SKILL.md
+│   └── paper-summarizer/
+│       ├── SKILL.md
+│       ├── skill.json
+│       └── references/EXAMPLES.md
+├── data/                           # Runtime data (git-ignored)
+│   ├── briefings/
+│   │   ├── briefings/              # JSON files
+│   │   └── output/                 # TXT files
+│   ├── papers/                     # Temporary PDF storage
+│   └── briefings.db                # SQLite database
+├── logs/                           # Log files
+└── launchd/                        # launchd plist files
+```

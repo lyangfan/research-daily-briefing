@@ -6,7 +6,8 @@ AI 过滤器
 
 import os
 import subprocess
-from typing import Dict, List
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Dict, List, Tuple
 
 from ..utils.logger import get_logger
 
@@ -26,6 +27,8 @@ class AIFilter:
         self.config = config
         self.keywords = config.get('keywords', [])
         self.max_papers = config.get('max_papers', 30)
+        # 并行处理配置
+        self.max_workers = config.get('max_workers', 4)  # 并行线程数
 
         # 查找 claude 命令
         self.claude_path = self._find_claude()
@@ -34,7 +37,7 @@ class AIFilter:
             self.use_claude = False
         else:
             self.use_claude = True
-            logger.info(f'AI 过滤器初始化完成 (Claude Code: {self.claude_path})')
+            logger.info(f'AI 过滤器初始化完成 (Claude Code: {self.claude_path}, 并行线程: {self.max_workers})')
 
         # 加载 paper-relevance-judge skill
         self.skill_content = self._load_skill()
@@ -116,26 +119,39 @@ class AIFilter:
         keyword_filtered = self._filter_by_keywords(papers)
         logger.info(f'关键词初筛后剩余 {len(keyword_filtered)} 篇论文')
 
-        # 限制数量
-        if len(keyword_filtered) > self.max_papers:
+        # 限制数量（max_papers 为 0 表示不限制）
+        if self.max_papers > 0 and len(keyword_filtered) > self.max_papers:
             logger.info(f'限制数量为 {self.max_papers} 篇')
             keyword_filtered = keyword_filtered[:self.max_papers]
 
-        # 第二步：AI 判断相关性
+        # 第二步：AI 判断相关性（并行处理）
         if self.use_claude:
             relevant_papers = []
-            for i, paper in enumerate(keyword_filtered):
-                try:
-                    is_relevant = self._check_relevance(paper)
-                    if is_relevant:
+            total = len(keyword_filtered)
+
+            # 使用线程池并行处理
+            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                # 提交所有任务
+                future_to_index = {
+                    executor.submit(self._check_relevance, paper): (i, paper)
+                    for i, paper in enumerate(keyword_filtered)
+                }
+
+                # 收集结果
+                for future in as_completed(future_to_index):
+                    index, paper = future_to_index[future]
+                    title = paper.get('title', 'Unknown')
+                    try:
+                        is_relevant = future.result()
+                        if is_relevant:
+                            relevant_papers.append(paper)
+                            logger.info(f'[{index+1}/{total}] ✓ {title}')
+                        else:
+                            logger.info(f'[{index+1}/{total}] ✗ {title}')
+                    except Exception as e:
+                        logger.error(f'[{index+1}/{total}] 判断失败: {title} - {e}')
+                        # 出错时保守处理，保留论文
                         relevant_papers.append(paper)
-                        logger.info(f'[{i+1}/{len(keyword_filtered)}] ✓ {paper["title"][:50]}...')
-                    else:
-                        logger.debug(f'[{i+1}/{len(keyword_filtered)}] ✗ {paper["title"][:50]}...')
-                except Exception as e:
-                    logger.error(f'判断论文相关性时出错: {e}')
-                    # 出错时保守处理，保留论文
-                    relevant_papers.append(paper)
 
             logger.info(f'AI 过滤完成，相关论文 {len(relevant_papers)} 篇')
             return relevant_papers

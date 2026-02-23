@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from ..utils.logger import get_logger
 from ..utils.pdf_downloader import PDFDownloader
@@ -34,6 +35,9 @@ class PaperSummarizer:
         # 超时配置（支持外部 Skill 调用）
         self.single_paper_timeout = config.get('single_paper_timeout', 600)  # 单篇论文超时（秒）
         self.batch_timeout = config.get('batch_timeout', 900)  # 批量总结超时（秒）
+
+        # 并行处理配置
+        self.max_workers = config.get('max_workers', 4)  # 并行线程数
 
         # PDF 下载配置
         pdf_config = config.get('pdf_download', {})
@@ -104,7 +108,7 @@ class PaperSummarizer:
 
     def summarize_papers(self, papers: List[Dict]) -> List[Dict]:
         """
-        为所有论文生成总结
+        为所有论文生成总结（并行处理）
 
         Args:
             papers: 论文列表
@@ -112,21 +116,47 @@ class PaperSummarizer:
         Returns:
             添加了总结的论文列表
         """
-        logger.info(f'开始生成 {len(papers)} 篇论文的总结 (使用 Claude Code CLI)')
+        if not papers:
+            return papers
 
-        for i, paper in enumerate(papers):
-            try:
-                summary = self._summarize_paper(paper)
-                paper['summary'] = summary
-                paper['summary_language'] = self.language
-                logger.info(f'[{i+1}/{len(papers)}] 已总结: {paper["title"][:50]}...')
-            except Exception as e:
-                logger.error(f'总结论文时出错: {e}')
-                # 使用摘要作为后备
-                paper['summary'] = paper.get('abstract', '')[:self.max_length]
-                paper['summary_language'] = 'original'
+        logger.info(f'开始生成 {len(papers)} 篇论文的总结 (并行线程: {self.max_workers})')
+
+        # 使用线程池并行处理
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            # 提交所有任务
+            future_to_paper = {
+                executor.submit(self._summarize_and_update, paper): paper
+                for paper in papers
+            }
+
+            # 收集结果
+            completed = 0
+            total = len(papers)
+            for future in as_completed(future_to_paper):
+                paper = future_to_paper[future]
+                completed += 1
+                try:
+                    future.result()
+                    title = paper.get('title', 'Unknown')
+                    logger.info(f'[{completed}/{total}] 已总结: {title}')
+                except Exception as e:
+                    logger.error(f'总结论文时出错: {paper.get("title", "Unknown")} - {e}')
+                    # 使用摘要作为后备
+                    paper['summary'] = paper.get('abstract', '')[:self.max_length]
+                    paper['summary_language'] = 'original'
 
         return papers
+
+    def _summarize_and_update(self, paper: Dict) -> None:
+        """
+        总结单篇论文并更新到字典中（用于并行处理）
+
+        Args:
+            paper: 论文数据（会被直接修改）
+        """
+        summary = self._summarize_paper(paper)
+        paper['summary'] = summary
+        paper['summary_language'] = self.language
 
     def _summarize_paper(self, paper: Dict) -> str:
         """
@@ -203,12 +233,30 @@ class PaperSummarizer:
             if result.returncode == 0:
                 summary = result.stdout.strip()
 
+                # 清理可能的英文对话和思考过程
+                # 找到中文总结的开始位置（通常以 【研究问题】 或类似标记开始）
+                lines = summary.split('\n')
+                summary_start = 0
+
+                # 寻找第一个包含中文字符的行作为总结开始
+                for i, line in enumerate(lines):
+                    # 检查是否包含中文字符（Unicode 范围）
+                    has_chinese = any('\u4e00' <= char <= '\u9fff' for char in line)
+                    # 排除纯英文行
+                    if has_chinese and not line.strip().startswith('📝'):
+                        summary_start = i
+                        break
+
+                # 如果找到中文开始位置，截取从那里开始的内容
+                if summary_start > 0:
+                    summary = '\n'.join(lines[summary_start:]).strip()
+
                 # 清理可能的 markdown 代码块标记
                 if summary.startswith('```'):
                     lines = summary.split('\n')
                     if lines[0].startswith('```'):
                         lines = lines[1:]
-                    if lines[-1].startswith('```'):
+                    if lines and lines[-1].startswith('```'):
                         lines = lines[:-1]
                     summary = '\n'.join(lines).strip()
 
@@ -240,20 +288,27 @@ class PaperSummarizer:
         Returns:
             论文内容文本
         """
-        # 1. 如果已有 pdf_path，直接提取文本
-        if paper.get('pdf_path'):
+        # 1. 优先使用预先提取的 PDF 文本（避免并发读取）
+        if paper.get('pdf_text'):
+            return f"PDF全文内容:\n{paper['pdf_text']}"
+
+        # 2. 如果有 pdf_path 但没有预先提取的文本，提取文本
+        if paper.get('pdf_path') and not paper.get('pdf_text'):
+            logger.info(f'提取 PDF 文本: {paper.get("title", "")[:50]}...')
             pdf_text = self._extract_pdf_text(paper['pdf_path'])
             if pdf_text:
+                # 缓存提取的文本
+                paper['pdf_text'] = pdf_text
                 return f"PDF全文内容:\n{pdf_text}"
 
-        # 2. 如果启用了 PDF 下载且有 pdf_url，尝试下载
+        # 3. 如果启用了 PDF 下载且有 pdf_url，尝试下载
         if self.pdf_enabled and self.pdf_downloader and paper.get('pdf_url'):
             logger.info(f'尝试下载 PDF: {paper.get("title", "")[:50]}...')
             pdf_text = self.pdf_downloader.download_and_extract(paper)
             if pdf_text:
                 return f"PDF全文内容:\n{pdf_text}"
 
-        # 3. 降级到摘要模式
+        # 4. 降级到摘要模式
         abstract = paper.get('abstract', '')
         if abstract:
             return f"摘要:\n{abstract}"

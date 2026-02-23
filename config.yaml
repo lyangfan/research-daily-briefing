@@ -39,7 +39,8 @@ ai_filter:
   mode: "hybrid"
 
   model: "claude-3-5-sonnet-20241022"
-  max_papers: 30  # 每天最多处理多少篇论文
+  max_papers: 0  # 0 表示不限制论文数量
+  max_workers: 2  # 并行处理线程数（AI 过滤和总结）
   max_summary_papers: 10  # 早报中最多包含多少篇
 
   # 相关性判断的关键词（用于初筛）
@@ -168,6 +169,7 @@ pdf_download:
   max_text_length: 30000             # 提取的最大文本长度（字符数）
   timeout: 60                        # 下载超时（秒）
   user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"  # 用户代理
+  auto_cleanup: true                 # 处理完成后自动删除 PDF 文件（避免积累太多文件）
 
 # OpenClaw 配置
 openclaw:

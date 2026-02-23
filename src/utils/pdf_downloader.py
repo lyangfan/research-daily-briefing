@@ -137,8 +137,33 @@ class PDFDownloader:
             return md_text
 
         except Exception as e:
-            logger.error(f'提取 PDF 文本失败: {e}')
-            return ''
+            # 如果 PyMuPDF4LLM 失败，尝试使用基础 PyMuPDF 提取纯文本
+            logger.warning(f'PyMuPDF4LLM 提取失败 ({e})，尝试使用基础 PyMuPDF 提取')
+            try:
+                import fitz  # PyMuPDF
+                doc = fitz.open(pdf_path)
+                text_parts = []
+                for page in doc:
+                    try:
+                        page_text = page.get_text()
+                        if page_text.strip():
+                            text_parts.append(page_text)
+                    except:
+                        # 跳过无法提取的页面（如图像页面）
+                        continue
+                doc.close()
+
+                plain_text = '\n\n'.join(text_parts)
+
+                if max_chars > 0 and len(plain_text) > max_chars:
+                    plain_text = plain_text[:max_chars] + '\n\n[文本已截断...]'
+
+                logger.debug(f'使用基础 PyMuPDF 提取了 {len(plain_text)} 字符文本')
+                return plain_text
+
+            except Exception as e2:
+                logger.error(f'基础 PyMuPDF 提取也失败: {e2}')
+                return ''
 
     def download_and_extract(self, paper: Dict) -> Optional[str]:
         """
@@ -187,6 +212,25 @@ class PDFDownloader:
 
         if deleted_count > 0:
             logger.info(f'清理了 {deleted_count} 个旧 PDF 文件')
+
+    def cleanup_all_pdfs(self):
+        """
+        清理所有 PDF 文件
+        """
+        if not self.storage_dir.exists():
+            return
+
+        deleted_count = 0
+
+        for pdf_file in self.storage_dir.rglob('*.pdf'):
+            try:
+                pdf_file.unlink()
+                deleted_count += 1
+            except Exception as e:
+                logger.warning(f'删除 PDF 失败: {pdf_file}, {e}')
+
+        if deleted_count > 0:
+            logger.info(f'清理了 {deleted_count} 个 PDF 文件')
 
     def get_storage_info(self) -> Dict:
         """
