@@ -127,26 +127,30 @@ class PaperStorage:
             papers: 论文列表
             process_date: 处理日期 (YYYY-MM-DD)
         """
+        # 准备批量数据
+        batch_data = []
+        for paper in papers:
+            paper_id = paper.get('id') or paper.get('paper_id')
+            if paper_id:
+                # 只保留必要的元数据
+                metadata = {
+                    'title': paper.get('title', '')[:100],  # 只保留前100字符
+                    'platform': paper.get('platform', ''),
+                    'categories': paper.get('categories', [])[:5]  # 只保留前5个分类
+                }
+                batch_data.append((paper_id, process_date, json.dumps(metadata)))
+
+        if not batch_data:
+            return
+
         with self._get_connection() as conn:
             cursor = conn.cursor()
-
-            for paper in papers:
-                paper_id = paper.get('id') or paper.get('paper_id')
-                if paper_id:
-                    # 只保留必要的元数据
-                    metadata = {
-                        'title': paper.get('title', '')[:100],  # 只保留前100字符
-                        'platform': paper.get('platform', ''),
-                        'categories': paper.get('categories', [])[:5]  # 只保留前5个分类
-                    }
-
-                    cursor.execute('''
-                        INSERT OR REPLACE INTO processed_papers (paper_id, processed_date, metadata)
-                        VALUES (?, ?, ?)
-                    ''', (paper_id, process_date, json.dumps(metadata)))
-
+            cursor.executemany('''
+                INSERT OR REPLACE INTO processed_papers (paper_id, processed_date, metadata)
+                VALUES (?, ?, ?)
+            ''', batch_data)
             conn.commit()
-            logger.info(f'批量标记 {len(papers)} 篇论文为已处理')
+            logger.info(f'批量标记 {len(batch_data)} 篇论文为已处理')
 
     def save_briefing(self, briefing_date: str, briefing_data: Dict) -> Path:
         """

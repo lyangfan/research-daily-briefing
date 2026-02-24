@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from ..utils.logger import get_logger
 from ..utils.pdf_downloader import PDFDownloader
+from ..utils.claude_cli import find_claude
 
 logger = get_logger()
 
@@ -47,7 +48,7 @@ class PaperSummarizer:
             self.pdf_downloader = PDFDownloader(pdf_config)
 
         # 查找 claude 命令
-        self.claude_path = self._find_claude()
+        self.claude_path = find_claude()
         if not self.claude_path:
             raise ValueError('未找到 Claude Code CLI，请确保已安装')
 
@@ -77,34 +78,6 @@ class PaperSummarizer:
         self.use_skill = self.skill_file is not None
 
         logger.info(f'总结器初始化完成 (Claude Code: {self.claude_path}, 语言: {self.language}, 使用 Skill: {self.use_skill}, PDF支持: {self.pdf_enabled})')
-
-    def _find_claude(self) -> str:
-        """
-        查找 claude 命令路径
-
-        Returns:
-            claude 命令路径，未找到返回 None
-        """
-        # 1. 检查 PATH 中的 claude
-        try:
-            result = subprocess.run(['which', 'claude'], capture_output=True, text=True)
-            if result.returncode == 0 and result.stdout.strip():
-                return result.stdout.strip()
-        except:
-            pass
-
-        # 2. 检查常见安装位置
-        common_paths = [
-            os.path.expanduser('~/.local/bin/claude'),
-            '/usr/local/bin/claude',
-            os.path.expanduser('~/.claude/local/claude'),
-        ]
-
-        for path in common_paths:
-            if os.path.exists(path) and os.access(path, os.X_OK):
-                return path
-
-        return None
 
     def summarize_papers(self, papers: List[Dict]) -> List[Dict]:
         """

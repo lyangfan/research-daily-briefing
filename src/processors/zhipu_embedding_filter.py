@@ -11,6 +11,7 @@ import json
 import requests
 
 from ..utils.logger import get_logger
+from ..utils.math_utils import cosine_similarity
 
 logger = get_logger()
 
@@ -90,30 +91,6 @@ class ZhipuEmbeddingFilter:
             logger.error(f'获取 embedding 失败: {e}')
             raise
 
-    @staticmethod
-    def cosine_similarity(a: List[float], b: List[float]) -> float:
-        """
-        计算余弦相似度
-
-        Args:
-            a: 向量 a
-            b: 向量 b
-
-        Returns:
-            相似度分数 (0-1)
-        """
-        a_array = np.array(a)
-        b_array = np.array(b)
-
-        dot_product = np.dot(a_array, b_array)
-        norm_a = np.linalg.norm(a_array)
-        norm_b = np.linalg.norm(b_array)
-
-        if norm_a == 0 or norm_b == 0:
-            return 0.0
-
-        return dot_product / (norm_a * norm_b)
-
     def filter_papers(self, papers: List[Dict]) -> List[Dict]:
         """
         使用 embedding 相似度过滤论文
@@ -144,7 +121,7 @@ class ZhipuEmbeddingFilter:
                 paper_embedding = self._get_embedding(text)
 
                 # 计算相似度
-                similarity = self.cosine_similarity(self.query_embedding, paper_embedding)
+                similarity = cosine_similarity(self.query_embedding, paper_embedding)
 
                 if similarity >= self.similarity_threshold:
                     paper['similarity_score'] = similarity
@@ -218,7 +195,7 @@ class ZhipuEmbeddingFilter:
 
             for i, (paper, embedding_data) in enumerate(zip(papers, embeddings)):
                 paper_embedding = embedding_data['embedding']
-                similarity = self.cosine_similarity(self.query_embedding, paper_embedding)
+                similarity = cosine_similarity(self.query_embedding, paper_embedding)
 
                 if similarity >= self.similarity_threshold:
                     paper['similarity_score'] = similarity

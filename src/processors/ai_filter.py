@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Tuple
 
 from ..utils.logger import get_logger
+from ..utils.claude_cli import find_claude
 
 logger = get_logger()
 
@@ -31,7 +32,7 @@ class AIFilter:
         self.max_workers = config.get('max_workers', 4)  # 并行线程数
 
         # 查找 claude 命令
-        self.claude_path = self._find_claude()
+        self.claude_path = find_claude()
         if not self.claude_path:
             logger.warning('未找到 Claude Code CLI，将使用关键词过滤')
             self.use_claude = False
@@ -41,27 +42,6 @@ class AIFilter:
 
         # 加载 paper-relevance-judge skill
         self.skill_content = self._load_skill()
-
-    def _find_claude(self) -> str:
-        """查找 claude 命令路径"""
-        try:
-            result = subprocess.run(['which', 'claude'], capture_output=True, text=True)
-            if result.returncode == 0 and result.stdout.strip():
-                return result.stdout.strip()
-        except:
-            pass
-
-        common_paths = [
-            os.path.expanduser('~/.local/bin/claude'),
-            '/usr/local/bin/claude',
-            os.path.expanduser('~/.claude/local/claude'),
-        ]
-
-        for path in common_paths:
-            if os.path.exists(path) and os.access(path, os.X_OK):
-                return path
-
-        return None
 
     def _load_skill(self) -> str:
         """
@@ -150,8 +130,7 @@ class AIFilter:
                             logger.info(f'[{index+1}/{total}] ✗ {title}')
                     except Exception as e:
                         logger.error(f'[{index+1}/{total}] 判断失败: {title} - {e}')
-                        # 出错时保守处理，保留论文
-                        relevant_papers.append(paper)
+                        # 出错时不保留论文，避免引入噪音
 
             logger.info(f'AI 过滤完成，相关论文 {len(relevant_papers)} 篇')
             return relevant_papers
@@ -365,15 +344,15 @@ class AIFilter:
                 logger.warning(f"无法解析 AI 判断结果，内容前 200 字符: {content[:200]}")
                 return False
             else:
-                logger.debug(f'Claude Code CLI 调用失败: {result.stderr}')
+                logger.warning(f'Claude Code CLI 调用失败: {result.stderr}')
                 # 降级到关键词判断
                 return self._has_keyword(paper)
 
         except subprocess.TimeoutExpired:
-            logger.debug('Claude Code CLI 超时')
+            logger.warning('Claude Code CLI 超时')
             return self._has_keyword(paper)
         except Exception as e:
-            logger.debug(f'AI 判断失败: {e}')
+            logger.warning(f'AI 判断失败: {e}')
             return self._has_keyword(paper)
 
     def _has_keyword(self, paper: Dict) -> bool:

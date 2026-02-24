@@ -302,11 +302,12 @@ class ResearchBriefingSystem:
         """清理旧数据"""
         self.storage.cleanup_old_data()
 
-        # 定期优化数据库
+        # 定期优化数据库（每周一执行）
         if self.config.get('storage', {}).get('auto_optimize', False):
-            import random
-            # 10% 的概率执行优化（避免每次都执行）
-            if random.random() < 0.1:
+            today = date.today()
+            # 周一执行优化（weekday() 返回 0 表示周一）
+            if today.weekday() == 0:
+                self.logger.info('执行每周数据库优化')
                 self.storage.optimize_database()
 
         self.logger.info('旧数据清理完成')

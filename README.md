@@ -135,7 +135,7 @@ ai_filter:
   mode: "hybrid"              # hybrid | keywords | embedding | claude
   model: "claude-3-5-sonnet-20241022"
   max_papers: 0               # 0 表示不限制
-  max_workers: 4              # 并行处理线程数
+  max_workers: 2              # 并行处理线程数（建议不超过 2）
   max_summary_papers: 10      # 早报中最多包含多少篇
 
   # 过滤模式说明:
@@ -201,7 +201,9 @@ research-daily-briefing/
 │   └── utils/                      # 工具
 │       ├── logger.py               # 彩色日志
 │       ├── storage.py              # SQLite 存储
-│       └── pdf_downloader.py       # PDF 下载和文本提取
+│       ├── pdf_downloader.py       # PDF 下载和文本提取
+│       ├── math_utils.py           # 数学工具（余弦相似度）
+│       └── claude_cli.py           # Claude CLI 工具
 ├── skills/                         # Claude Code Skills
 │   ├── paper-relevance-judge/      # 论文相关性判断
 │   │   └── SKILL.md

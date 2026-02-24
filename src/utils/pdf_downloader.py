@@ -148,8 +148,9 @@ class PDFDownloader:
                         page_text = page.get_text()
                         if page_text.strip():
                             text_parts.append(page_text)
-                    except:
+                    except Exception as e:
                         # 跳过无法提取的页面（如图像页面）
+                        logger.debug(f'跳过无法提取的页面: {e}')
                         continue
                 doc.close()
 
