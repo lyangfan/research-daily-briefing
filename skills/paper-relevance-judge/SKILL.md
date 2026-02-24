@@ -46,6 +46,12 @@ A paper is **NOT RELEVANT** if it:
 - Describes **traditional machine learning** without agent-based architecture
 - Focuses on **single-model predictions** without agentic behavior (autonomy, tool use, reasoning)
 - Is about **pure theory** (e.g., game theory, optimization) without agent implementation
+- Is **pure bioinformatics/genomics research** (GWAS, pQTL, genome-wide association, proteomics, sequencing analysis) without any AI agent system
+- Uses **statistical methods only** (regression, PCA, correlation analysis) for biological/medical data without agent architecture
+- Is about **biological data analysis** using traditional computational methods (NOT AI agents)
+- Focuses on **biomarker discovery**, **genetic association studies**, or **proteomic profiling** without an AI agent component
+
+⚠️ **CRITICAL DISTINCTION**: A paper about "bioinformatics" or "genomics" is ONLY relevant if it uses AI **AGENTS**. Traditional bioinformatics pipelines, GWAS studies, and statistical genomics are NOT relevant, even if they use machine learning for prediction.
 
 ## Evaluation Framework
 
@@ -147,6 +153,15 @@ Confidence: HIGH
 - **Why**: Studies general LLM agents for safety, not scientific research
 - **Key issue**: Focus is on safety evaluation, not scientific application
 
+**Example 4**: "Human CSF proteogenomics links genetic variation to neurodegenerative disease proteins"
+- **Why**: Pure proteogenomics study using GWAS and statistical analysis, no AI agent involved
+- **Key issue**: Traditional bioinformatics/statistical genomics, NOT an agent system
+- **Note**: Despite keywords like "analysis", "framework", and medical domain, there is NO agent architecture
+
+**Example 5**: "Machine learning analysis of genomic data for cancer prediction"
+- **Why**: Uses ML for prediction, but no agent system (autonomy, tool use, reasoning)
+- **Key issue**: Single ML model for prediction, NOT an agent system
+
 ## Edge Cases and Special Considerations
 
 ### Borderline Cases - Lean Towards YES
@@ -184,6 +199,11 @@ Confidence: HIGH
 | "data analysis with agents" | YES | Agent for data analysis |
 | "workflow automation with LLM" | YES | Agentic workflow (likely science) |
 | "safety of LLM agents" | NO | Safety research, not scientific agent |
+| "GWAS / pQTL / proteomics study" | NO | Statistical genomics, not agent |
+| "ML for [biomarker/prediction]" | NO | Single ML model, not agent system |
+| "genomic analysis with ML" | NO | Traditional bioinformatics, no agent |
+| "statistical analysis of [biological data]" | NO | Statistics, not AI agent |
+| "proteogenomics / transcriptomics" | NO | Omics study, not agent system |
 
 ---
 
@@ -192,15 +212,25 @@ Confidence: HIGH
 Before outputting your decision, verify:
 
 **If answering YES, the paper MUST have at least:**
-1. ✓ Clear mention of "agent", "multi-agent", "LLM agent", or "agentic" AND
+1. ✓ Clear mention of "agent", "multi-agent", "LLM agent", or "agentic" (in the context of an AI system, not biological agents) AND
 2. ✓ Scientific/research application (data analysis, scientific computing, research automation, bio/medical, knowledge discovery) OR clear agentic capabilities (autonomy + tool use + reasoning)
 
 **If answering NO, the paper typically:**
-1. ✗ Lacks agent architecture (single model, traditional ML/DL)
+1. ✗ Lacks agent architecture (single model, traditional ML/DL, statistical methods)
 2. ✗ Applies agents to non-scientific domains (gaming, general chatbots, social media)
 3. ✗ Is pure theory (game theory, optimization) without implementation
 4. ✗ Focuses on safety/evaluation of agents rather than using agents for science
+5. ✗ Is pure bioinformatics/genomics (GWAS, pQTL, proteomics, sequencing) without AI agent system
+6. ✗ Uses ML/statistics for biological data but has NO agent component (no autonomy, no tool use, no reasoning)
+
+**⚠️ CRITICAL CHECK for Bio/Medical Papers:**
+Before answering YES for any bio/medical paper, ask:
+- Does this paper describe an **AI AGENT SYSTEM** (with autonomy, tool use, multi-step reasoning)?
+- OR is it just **traditional bioinformatics/statistical analysis** (GWAS, ML prediction, correlation analysis)?
+
+If it's the latter → Answer **NO**
 
 **When uncertain between YES and NO:**
-- If the paper mentions "research", "science", "scientific", "data analysis", "bio", "medical" → lean **YES**
-- If the paper mentions "game", "chatbot", "social", "entertainment", "general purpose" → lean **NO**
+- If the paper explicitly mentions "agent system", "agentic workflow", "multi-agent", "LLM agent" with scientific application → lean **YES**
+- If the paper only mentions "analysis", "model", "prediction", "framework" WITHOUT agent terminology → lean **NO**
+- If the paper is about "bioinformatics", "genomics", "proteomics" WITHOUT explicit agent architecture → lean **NO**
