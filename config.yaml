@@ -36,12 +36,13 @@ platforms:
 # AI 过滤配置
 ai_filter:
   # 过滤模式: "keywords" | "embedding" | "claude" | "hybrid"
-  mode: "hybrid"
+  # 推荐: "claude" - 准确度最高
+  mode: "claude"
 
   model: "claude-3-5-sonnet-20241022"
   max_papers: 0  # 0 表示不限制论文数量
   max_workers: 2  # 并行处理线程数（AI 过滤和总结）
-  max_summary_papers: 10  # 早报中最多包含多少篇
+  max_summary_papers: 0  # 早报中最多包含多少篇论文，0 表示不限制
 
   # 相关性判断的关键词（用于初筛）
   keywords:
@@ -170,12 +171,6 @@ pdf_download:
   timeout: 60                        # 下载超时（秒）
   user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"  # 用户代理
   auto_cleanup: true                 # 处理完成后自动删除 PDF 文件（避免积累太多文件）
-
-# OpenClaw 配置
-openclaw:
-  feishu_target: ""  # 飞书群或用户ID（需要在 .env 中配置）
-  gateway_url: "http://127.0.0.1:18789"  # OpenClaw Gateway 地址
-  send_time: "07:00"
 
 # 数据存储配置
 storage:

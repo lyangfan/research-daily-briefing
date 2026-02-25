@@ -98,9 +98,7 @@ class ResearchBriefingSystem:
         self.summarizer = PaperSummarizer(summarizer_config)
 
         # 初始化格式化器
-        self.formatter = FeishuFormatter(
-            {**self.config.get('openclaw', {}), **self.config.get('ai_filter', {})}
-        )
+        self.formatter = FeishuFormatter(self.config.get('ai_filter', {}))
 
         self.logger.info('科研早报系统初始化完成')
 

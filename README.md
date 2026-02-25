@@ -55,11 +55,14 @@ nano .env
 编辑 `.env` 文件：
 
 ```bash
-# Zhipu AI (用于 Embedding，可选)
+# 智谱 AI (用于 Embedding 过滤，可选)
 ZHIPU_API_KEY=你的智谱API密钥
+
+# OpenAI (用于 Embedding 过滤，可选)
+# OPENAI_API_KEY=你的OpenAI密钥
 ```
 
-**注意**: 本系统使用 **Claude Code CLI** 进行 AI 处理，不需要配置 ANTHROPIC_API_KEY。
+**注意**: 本系统使用 **Claude Code CLI** 进行 AI 过滤和总结，不需要配置 ANTHROPIC_API_KEY。
 
 ## 使用方法
 
@@ -75,11 +78,14 @@ python3 src/main.py run --date 2026-02-20
 
 **说明**: `run` 命令会生成早报文件到 `data/briefings/output/YYYY-MM-DD.txt`。
 
-### 手动执行（调试用）
+### 其他命令
 
 ```bash
-# 采集和处理论文（保存到数据库）
+# 采集和处理论文（保存到数据库，不生成输出文件）
 python3 src/main.py fetch
+
+# 测试消息格式（不发送）
+python3 src/main.py test
 
 # 查看统计信息
 python3 src/main.py stats
@@ -96,9 +102,6 @@ python3 src/main.py run --date 2026-02-20
 
 # 仅采集
 python3 src/main.py fetch --date 2026-02-20
-
-# 仅发送
-python3 src/main.py send --date 2026-02-20
 ```
 
 ### 查看日志
@@ -132,17 +135,17 @@ platforms:
 
 # AI 过滤配置
 ai_filter:
-  mode: "hybrid"              # hybrid | keywords | embedding | claude
+  mode: "claude"              # claude (推荐) | hybrid | keywords | embedding
   model: "claude-3-5-sonnet-20241022"
   max_papers: 0               # 0 表示不限制
   max_workers: 2              # 并行处理线程数（建议不超过 2）
-  max_summary_papers: 10      # 早报中最多包含多少篇
+  max_summary_papers: 0       # 输出论文数量上限，0 表示不限制（默认）
 
   # 过滤模式说明:
+  # - claude: 关键词 → Claude CLI 判断 (推荐，准确度最高)
   # - hybrid: 关键词 → Embedding → Claude CLI 判断
   # - keywords: 仅关键词过滤
   # - embedding: 仅 Embedding 相似度
-  # - claude: 关键词 → Claude CLI 判断
 
   keywords: [...]             # 初筛关键词 (50+)
 
@@ -175,6 +178,14 @@ storage:
   database_path: "data/briefings.db"
   auto_optimize: true
 ```
+
+### 关键配置说明
+
+- **`ai_filter.mode`**: 过滤模式，推荐使用 `claude`，准确度最高
+- **`ai_filter.max_summary_papers`**: 输出论文数量上限
+  - `0`（默认）: 不限制，通过筛选的论文全部输出
+  - `10`: 最多输出 10 篇论文
+- **`ai_filter.max_workers`**: 并行线程数，建议设为 2，过高会导致 Claude CLI 出错
 
 ## 项目结构
 
@@ -218,39 +229,39 @@ research-daily-briefing/
 │   ├── briefings/                  # 早报 JSON 数据
 │   ├── papers/                     # PDF 存储
 │   │   ├── arxiv/
-│   │   ├── medrxiv/
-│   │   └── unknown/
+│   │   ├── biorxiv/
+│   │   └── medrxiv/
 │   └── briefings.db                # SQLite 数据库
 └── logs/                           # 日志文件
 ```
 
 ## AI 过滤模式
 
-系统支持 4 种过滤模式：
+系统支持 4 种过滤模式，**推荐使用 Claude 模式**：
 
-### 1. Hybrid（推荐）
+### 1. Claude（推荐）
+```
+关键词初筛 → Claude CLI + paper-relevance-judge skill 判断
+```
+**最准确**，使用 Claude Code CLI 调用 skill 进行判断，准确率高且一致性好。
+
+### 2. Hybrid
 ```
 关键词初筛 → Embedding 相似度 → Claude CLI 判断
 ```
-最严格，准确率最高，适合生产环境。
-
-### 2. Claude
-```
-关键词初筛 → paper-relevance-judge skill 判断
-```
-使用 Claude CLI 调用 skill 进行判断，准确率高且一致性好。
+最严格，经过三层过滤，但速度较慢。
 
 ### 3. Embedding
 ```
 关键词初筛 → Embedding 相似度判断
 ```
-速度快，适合快速筛选。
+速度快，适合快速筛选，但准确率较低。
 
 ### 4. Keywords
 ```
 仅关键词匹配
 ```
-最快，但准确率较低。
+最快，但准确率最低，容易漏选或误选。
 
 ## Skills
 

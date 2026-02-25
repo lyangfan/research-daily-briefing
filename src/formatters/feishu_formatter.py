@@ -23,7 +23,7 @@ class FeishuFormatter:
             config: 格式化配置
         """
         self.config = config
-        self.max_summary_papers = config.get('max_summary_papers', 10)
+        self.max_summary_papers = config.get('max_summary_papers', 0)  # 0 表示不限制
 
     def format_briefing(self, briefing_data: Dict) -> str:
         """
@@ -38,8 +38,11 @@ class FeishuFormatter:
         papers = briefing_data.get('papers', [])
         briefing_date = briefing_data.get('date', date.today().strftime('%Y-%m-%d'))
 
-        # 限制论文数量
-        papers_to_show = papers[:self.max_summary_papers]
+        # 限制论文数量（0 表示不限制）
+        if self.max_summary_papers > 0:
+            papers_to_show = papers[:self.max_summary_papers]
+        else:
+            papers_to_show = papers
 
         # 构建消息
         message_parts = [
@@ -54,7 +57,7 @@ class FeishuFormatter:
             message_parts.append(self._format_paper(i, paper))
 
         # 如果有更多论文
-        if len(papers) > self.max_summary_papers:
+        if self.max_summary_papers > 0 and len(papers) > self.max_summary_papers:
             message_parts.append(f"\n... 还有 {len(papers) - self.max_summary_papers} 篇论文")
 
         # 添加结尾
