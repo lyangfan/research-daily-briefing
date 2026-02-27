@@ -6,6 +6,7 @@ arXiv 论文采集器
 
 import feedparser
 import requests
+import time
 from datetime import date, timedelta
 from typing import Dict, List
 
@@ -28,6 +29,12 @@ class ArxivFetcher(BaseFetcher):
         self.batch_size = config.get('batch_size', 100)
         # 最大获取论文数（防止无限循环）
         self.max_papers_per_category = config.get('max_papers_per_category', 2000)
+        # 请求间隔（秒），避免触发 429 限流
+        self.request_delay = config.get('request_delay', 1.0)
+        # 重试次数
+        self.max_retries = config.get('max_retries', 3)
+        # 重试延迟（秒）
+        self.retry_delay = config.get('retry_delay', 2.0)
 
     def fetch(self, target_date: date, days_back: int = 1) -> List[Dict]:
         """
@@ -106,8 +113,39 @@ class ArxivFetcher(BaseFetcher):
                     'sortOrder': 'descending'
                 }
 
-                response = requests.get(self.BASE_URL, params=params, timeout=30)
-                response.raise_for_status()
+                # 请求延迟，避免触发 429 限流
+                if start > 0:
+                    time.sleep(self.request_delay)
+
+                response = None
+                last_error = None
+
+                for attempt in range(self.max_retries):
+                    try:
+                        response = requests.get(self.BASE_URL, params=params, timeout=30)
+
+                        # 检查是否为 429 限流
+                        if response.status_code == 429:
+                            retry_after = int(response.headers.get('Retry-After', self.retry_delay))
+                            logger.warning(f'{category}: 触发限流 (429)，等待 {retry_after} 秒后重试...')
+                            time.sleep(retry_after)
+                            continue
+
+                        response.raise_for_status()
+                        break  # 请求成功，退出重试循环
+
+                    except requests.exceptions.RequestException as e:
+                        last_error = e
+                        if attempt < self.max_retries - 1:
+                            logger.warning(f'{category}: API 请求失败 (尝试 {attempt + 1}/{self.max_retries}): {e}')
+                            time.sleep(self.retry_delay * (attempt + 1))  # 指数退避
+                        else:
+                            logger.error(f'{category}: API 请求失败，已重试 {self.max_retries} 次：{e}')
+                            break
+
+                if response is None or not response.ok:
+                    logger.error(f'{category}: API 请求最终失败: {last_error}')
+                    break
 
                 # 解析 Atom 格式响应
                 feed = feedparser.parse(response.content)

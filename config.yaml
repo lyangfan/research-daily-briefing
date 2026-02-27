@@ -16,6 +16,10 @@ platforms:
     # 分页配置
     batch_size: 100                    # 每批获取的论文数
     max_papers_per_category: 2000       # 每个分类最多获取论文数（防止无限循环）
+    # 请求控制
+    request_delay: 1.0                 # 请求间隔（秒），避免触发 429 限流
+    max_retries: 3                     # 最大重试次数
+    retry_delay: 2.0                   # 重试延迟（秒）
 
   biorxiv:
     enabled: true
@@ -168,7 +172,9 @@ pdf_download:
   enabled: true                      # 是否启用 PDF 下载
   storage_dir: "data/papers"         # PDF 存储目录
   max_text_length: 30000             # 提取的最大文本长度（字符数）
-  timeout: 60                        # 下载超时（秒）
+  timeout: 120                       # 下载超时（秒）
+  max_retries: 3                     # 最大重试次数
+  retry_delay: 2.0                   # 重试延迟（秒）
   user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"  # 用户代理
   auto_cleanup: true                 # 处理完成后自动删除 PDF 文件（避免积累太多文件）
 

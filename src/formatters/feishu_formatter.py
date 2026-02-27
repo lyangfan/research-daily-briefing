@@ -116,13 +116,20 @@ class FeishuFormatter:
         }
         icon = platform_icons.get(paper.get('platform', ''), '📄')
 
+        # 获取 paper_id（用于下载引用）
+        paper_id = paper.get('id', '')
+
         parts = [
             f"{icon} 【{index}】{paper.get('title', '无标题')}",
         ]
 
+        # 添加 paper_id（方便用户引用下载）
+        if paper_id:
+            parts.append(f"📌 ID: {paper_id}")
+
         # 添加总结（如果有）
         if paper.get('summary'):
-            parts.append(f"\n📝 {paper['summary']}")
+            parts.append(f"📝 {paper['summary']}")
 
         # 添加分类（如果有）
         categories = paper.get('categories', [])
@@ -131,7 +138,7 @@ class FeishuFormatter:
             categories_str = ', '.join(categories[:3])
             if len(categories) > 3:
                 categories_str += ' ...'
-            parts.append(f"\n🏷️ 分类: {categories_str}")
+            parts.append(f"🏷️ 分类: {categories_str}")
 
         return '\n'.join(parts)
 

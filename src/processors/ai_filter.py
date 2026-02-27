@@ -215,7 +215,7 @@ class AIFilter:
                 ],
                 capture_output=True,
                 text=True,
-                timeout=120,  # 增加超时到 2 分钟
+                timeout=180,  # 增加超时到 3 分钟，减少超时错误
                 env={**os.environ, 'CLAUDECODE': ''}
             )
 

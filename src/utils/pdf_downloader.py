@@ -32,6 +32,8 @@ class PDFDownloader:
         self.storage_dir = Path(config.get('storage_dir', 'data/papers'))
         self.max_text_length = config.get('max_text_length', 30000)
         self.timeout = config.get('timeout', 60)
+        self.max_retries = config.get('max_retries', 3)
+        self.retry_delay = config.get('retry_delay', 2.0)
         self.user_agent = config.get(
             'user_agent',
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
@@ -76,14 +78,58 @@ class PDFDownloader:
         try:
             logger.info(f'开始下载 PDF: {pdf_url}')
 
-            headers = {'User-Agent': self.user_agent}
-            response = requests.get(
-                pdf_url,
-                headers=headers,
-                timeout=self.timeout,
-                stream=True
-            )
-            response.raise_for_status()
+            # 更完整的请求头，模拟浏览器行为
+            headers = {
+                'User-Agent': self.user_agent,
+                'Accept': 'application/pdf,text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9,zh-CN;q=0.8',
+                'Referer': pdf_url.rsplit('/', 1)[0] + '/',  # 设置 Referer 为同一域名
+            }
+
+            # 针对 bioRxiv/medRxiv 的特殊处理
+            if 'biorxiv.org' in pdf_url or 'medrxiv.org' in pdf_url:
+                headers['Accept'] = 'application/pdf'
+                headers['Sec-Fetch-Dest'] = 'document'
+                headers['Sec-Fetch-Mode'] = 'navigate'
+
+            response = None
+            last_error = None
+
+            for attempt in range(self.max_retries):
+                try:
+                    response = requests.get(
+                        pdf_url,
+                        headers=headers,
+                        timeout=self.timeout,
+                        stream=True
+                    )
+
+                    # 检查是否为 403 错误
+                    if response.status_code == 403:
+                        logger.warning(f'下载 PDF 被拒绝 (403): {pdf_url} (尝试 {attempt + 1}/{self.max_retries})')
+                        # 等待重试
+                        if attempt < self.max_retries - 1:
+                            time.sleep(self.retry_delay * (attempt + 1))
+                            continue
+                        else:
+                            logger.error(f'下载 PDF 失败：403 Forbidden - {pdf_url}')
+                            return None
+
+                    response.raise_for_status()
+                    break  # 下载成功
+
+                except requests.exceptions.RequestException as e:
+                    last_error = e
+                    if attempt < self.max_retries - 1:
+                        logger.warning(f'下载 PDF 失败 (尝试 {attempt + 1}/{self.max_retries}): {e}')
+                        time.sleep(self.retry_delay * (attempt + 1))
+                    else:
+                        logger.error(f'下载 PDF 失败，已重试 {self.max_retries} 次：{e}')
+                        return None
+
+            if response is None or not response.ok:
+                logger.error(f'下载 PDF 最终失败：{pdf_url}')
+                return None
 
             # 检查内容类型
             content_type = response.headers.get('content-type', '').lower()
